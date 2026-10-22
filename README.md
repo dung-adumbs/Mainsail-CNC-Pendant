@@ -20,6 +20,31 @@ A dedicated CNC control page alongside the standard Mainsail dashboard. Set up w
 
 *Live-page captures at a 390 × 844 phone viewport. No machine motion was commanded for these screenshots. The Android app has been installed and used on the reference owner’s phone; other devices need individual testing.*
 
+## On a real Android phone
+
+These screenshots were captured by the owner in the Android app during LowRider V4 testing. Tap an image for its full-size view. The full-screen viewer below is the expanded version.
+
+<table>
+<tr>
+<td width="50%" valign="top"><strong>Jogging below Safe Z</strong><br><a href="docs/images/android-motion-warning.jpg"><img src="docs/images/android-motion-warning.jpg" alt="Jogging below Safe Z: Amber motion controls, capped jog speed and a queued-motion reminder." width="340"></a><br>Amber motion controls, capped jog speed and a queued-motion reminder.</td>
+<td width="50%" valign="top"><strong>Job running · millimeters</strong><br><a href="docs/images/android-job-running.jpg"><img src="docs/images/android-job-running.jpg" alt="Job running · millimeters: Large Pause control, machine/work coordinates and run-speed adjustment." width="340"></a><br>Large Pause control, machine/work coordinates and run-speed adjustment.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><strong>Full-screen toolpath viewer</strong><br><a href="docs/images/android-toolpath-fullscreen.jpg"><img src="docs/images/android-toolpath-fullscreen.jpg" alt="Full-screen toolpath viewer: The expanded Mainsail viewer showing the P38 toolpath on the phone." width="340"></a><br>The expanded Mainsail viewer showing the P38 toolpath on the phone.</td>
+<td width="50%" valign="top"><strong>Verified job start</strong><br><a href="docs/images/android-verified-start.jpg"><img src="docs/images/android-verified-start.jpg" alt="Verified job start: Current work offsets and programmed travel are checked before the Start confirmation." width="340"></a><br>Current work offsets and programmed travel are checked before the Start confirmation.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><strong>Below-clearance confirmation</strong><br><a href="docs/images/android-clearance-confirmation.jpg"><img src="docs/images/android-clearance-confirmation.jpg" alt="Below-clearance confirmation: A deliberate confirmation before entering the protected work-Z region." width="340"></a><br>A deliberate confirmation before entering the protected work-Z region.</td>
+<td width="50%" valign="top"><strong>Controller recovery</strong><br><a href="docs/images/android-controller-recovery.jpg"><img src="docs/images/android-controller-recovery.jpg" alt="Controller recovery: Restart guidance after E-stop, including the need to rehome and reset zeros." width="340"></a><br>Restart guidance after E-stop, including the need to rehome and reset zeros.</td>
+</tr>
+<tr>
+<td width="50%" valign="top"><strong>Job running · centimeters</strong><br><a href="docs/images/android-job-centimeters.jpg"><img src="docs/images/android-job-centimeters.jpg" alt="Job running · centimeters: Shared unit selection also applies to the running coordinate display." width="340"></a><br>Shared unit selection also applies to the running coordinate display.</td>
+<td width="50%" valign="top"><strong>Abort confirmation</strong><br><a href="docs/images/android-abort-confirmation.jpg"><img src="docs/images/android-abort-confirmation.jpg" alt="Abort confirmation: Explicit cancellation guidance with E-stop still available." width="340"></a><br>Explicit cancellation guidance with E-stop still available.</td>
+</tr>
+</table>
+
+Toolpath visualization and software guards do not certify fixture or cutter clearance.
+
 ## Controls built for CNC
 
 - XY jog cross, three-row Z controls and a distinct Coarse/Fine toggle.
