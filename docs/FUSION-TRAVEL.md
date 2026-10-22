@@ -51,3 +51,7 @@ Design ideas were informed by the V1E discussions on [Fusion posts](https://foru
 
 Ordinary Manual NC Stop and Optional Stop entries are same-tool fastener/inspection pauses. No special note text is required. The post emits `; CNC_PAUSE: SAME_TOOL_RETURN` immediately before `PAUSE_BASE`, allowing the optimizer to retain planned coordinates across that stop. Startup/tool setup pauses remain conservative. This post still rejects multiple tools in one file. Resume verification and return-path checks remain required; this marker does not authorize a zero change or bypass preflight. Previously posted files must be reposted to get the new markers.
 
+# Non-cutting direct links (post 0.7)
+
+Level XY moves that Fusion explicitly classifies as `MOVEMENT_LINK_DIRECT` can use marked travel at or above the declared clearance plane. This includes eligible links inside an operation, rather than only operation-entry positioning. Cutting links, ramps, helices and below-clearance direct links retain their original feeds. Do not infer travel from height alone. Repost to apply this classification; existing files marked CUT are not reinterpreted by the optimizer.
+

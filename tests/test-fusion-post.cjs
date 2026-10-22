@@ -40,3 +40,12 @@ assert(source.includes('CNC_PENDANT_OPTIMIZER: V1'));assert(source.includes('CNC
 console.log('PASS: CAM intent, explicit feeds, segmented markers, retract/XY/lower ordering.');
 
 {const {c,output}=context();c.pauseHere('Fasteners',true);assert.equal(output[output.indexOf('PAUSE_BASE')-1],'; CNC_PAUSE: SAME_TOOL_RETURN');}
+
+{
+ const {c,output}=context();c.MOVEMENT_LINK_DIRECT=9;c.movement=9;c.emittedPosition={X:0,Y:0,Z:6};c.onLinear(20,0,6,1000);
+ assert(output.includes('; CNC_MOVE: TRAVEL_XY'));assert(output.filter(x=>x.startsWith('G1')).every(x=>x.endsWith('F3000.0')));
+}
+{
+ const {c,output}=context();c.MOVEMENT_LINK_DIRECT=9;c.movement=9;c.emittedPosition={X:0,Y:0,Z:2};c.onLinear(20,0,2,1000);
+ assert(!output.includes('; CNC_MOVE: TRAVEL_XY'));assert(output.filter(x=>x.startsWith('G1')).every(x=>x.endsWith('F1000.0')));
+}
