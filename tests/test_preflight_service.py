@@ -74,4 +74,21 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
   with self.assertRaises(ValueError):await self.c._clear(Request())
   self.s['pause_resume']['is_paused']=False;self.s['print_stats']['state']='standby';self.s['virtual_sdcard']['is_active']=True
   with self.assertRaises(ValueError):await self.c._clear(Request())
+ async def test_optimizer_preview_create_and_stale_source(self):
+  program='; CNC_PENDANT_OPTIMIZER: V1\n; CNC_TRAVEL_CLEARANCE_MM: 5\nG90\nG21\n; CNC_MOVE: UNKNOWN\nG1 X0 Y0 Z10 F100\n; CNC_MOVE: TRAVEL_XY\nG1 X10 Y0 F100\n'
+  source=self.c.root/'marked.gcode';source.write_text(program);self.s['toolhead']['max_velocity']=100;self.s['configfile']['config']['printer']={'max_z_velocity':10}
+  request=Request(mode='preview',filename='marked.gcode',xy_feed='3000',z_feed='180');accepted=await self.c._optimize(request);self.assertEqual(accepted['state'],'working');await self.c.optimization_task
+  preview=dict(self.c.optimization);self.assertEqual(preview['state'],'preview');self.assertEqual(preview['changed_moves'],1);self.assertFalse((self.c.root/'cnc_optimized').exists())
+  source.write_text(program+'; edit\n');await self.c._optimize(Request(mode='create',filename='marked.gcode',xy_feed='3000',z_feed='180',preview_id=preview['id']));await self.c.optimization_task;self.assertEqual(self.c.optimization['state'],'error');self.assertIn('changed',self.c.optimization['message'])
+  await self.c._optimize(request);await self.c.optimization_task;preview=dict(self.c.optimization)
+  await self.c._optimize(Request(mode='create',filename='marked.gcode',xy_feed='3000',z_feed='180',preview_id=preview['id']));await self.c.optimization_task
+  self.assertEqual(self.c.optimization['state'],'created');self.assertEqual(source.read_text(),program+'; edit\n');output=self.c.root/self.c.optimization['filename'];self.assertIn('F3000',output.read_text());self.assertFalse(scan.scan_file(output).issues);self.c.api.run_gcode.assert_not_called()
+ async def test_optimizer_blocks_active_jobs_and_stale_preview(self):
+  self.paused()
+  with self.assertRaises(ValueError):await self.c._optimize(Request(mode='preview',filename='test.gcode',xy_feed='3000',z_feed='180'))
+  self.s['pause_resume']['is_paused']=False;self.s['print_stats']['state']='standby'
+  with self.assertRaises(ValueError):await self.c._optimize(Request(mode='create',filename='test.gcode',xy_feed='3000',z_feed='180',preview_id='invalid'))
+ async def test_optimizer_accounts_for_run_override(self):
+  source=self.c.root/'marked.gcode';source.write_text('; CNC_PENDANT_OPTIMIZER: V1\n; CNC_TRAVEL_CLEARANCE_MM: 5\nG90\nG21\nM220 S300\n; CNC_MOVE: UNKNOWN\nG1 X0 Y0 Z10 F100\n; CNC_MOVE: TRAVEL_XY\nG1 X10 F100\n');self.s['toolhead']['max_velocity']=100;self.s['configfile']['config']['printer']={'max_z_velocity':10}
+  await self.c._optimize(Request(mode='preview',filename='marked.gcode',xy_feed='3000',z_feed='180'));await self.c.optimization_task;self.assertEqual(self.c.optimization['state'],'error');self.assertIn('velocity',self.c.optimization['message']);self.c.api.run_gcode.assert_not_called()
 if __name__=='__main__':unittest.main()

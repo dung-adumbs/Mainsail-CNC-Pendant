@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio, datetime, hashlib, json, math, pathlib, uuid, logging
 from ..common import RequestType
 from .cnc_gcode_scan import scan_file, metadata_from_header, fingerprints, evaluate_bounds
+from .cnc_travel_optimize import inspect_header, optimize_bytes, MAX_BYTES
 
 class CNCPreflight:
     def __init__(self,config):
@@ -11,7 +12,8 @@ class CNCPreflight:
         self.directory=pathlib.Path(config.get('cache_path','~/printer_data/cnc_preflight')).expanduser();self.directory.mkdir(parents=True,exist_ok=True)
         self.profile_path=pathlib.Path(config.get('profile_path','~/printer_data/config/cnc_preflight_profile.json')).expanduser()
         self.job={'state':'empty','message':'Select and stage a file.'};self.model=None;self.generation=0;self.scan_lock=asyncio.Lock();self.action_lock=asyncio.Lock();self.bounds_cache={};self.initial_machine=None;self.operation={'state':'idle'};self.operation_task=None
-        for name,method in [('inspect',RequestType.GET),('stage',RequestType.POST),('status',RequestType.GET),('verify',RequestType.POST),('start',RequestType.POST),('resume',RequestType.POST),('clear',RequestType.POST)]:
+        self.optimization={'state':'idle'};self.optimization_task=None
+        for name,method in [('inspect',RequestType.GET),('stage',RequestType.POST),('status',RequestType.GET),('verify',RequestType.POST),('start',RequestType.POST),('resume',RequestType.POST),('clear',RequestType.POST),('optimize',RequestType.POST),('optimization',RequestType.GET)]:
             self.server.register_endpoint('/machine/cnc_preflight/'+name,method,getattr(self,'_'+name))
     def _path(self,filename):
         if not filename or any(c in filename for c in '\r\n\x00\"\'\\{}') or len(filename)>512:raise self.server.error('Invalid filename',400)
@@ -55,7 +57,54 @@ class CNCPreflight:
         filename=request.get_str('filename');path=self._path(filename);stat=path.stat();box=await asyncio.to_thread(metadata_from_header,path);s=await self._snapshot()
         with path.open('rb') as source:header=source.read(16384).decode('utf-8',errors='replace')
         comments=[line.lstrip('; ').strip() for line in header.splitlines()[:70] if line.strip().startswith(';')]
-        return {'filename':filename,'size':stat.st_size,'modified':datetime.datetime.fromtimestamp(stat.st_mtime,datetime.timezone.utc).isoformat(),'metadata':box,'preliminary':self._preliminary(s,box),'header_comments':comments}
+        return {'filename':filename,'size':stat.st_size,'modified':datetime.datetime.fromtimestamp(stat.st_mtime,datetime.timezone.utc).isoformat(),'metadata':box,'preliminary':self._preliminary(s,box),'header_comments':comments,'optimizer':inspect_header(header)}
+    def _optimization_idle(self,s):
+        if s.get('webhooks',{}).get('state')!='ready' or s.get('pause_resume',{}).get('is_paused') or s.get('virtual_sdcard',{}).get('is_active') or s.get('print_stats',{}).get('state') in ['printing','paused'] or getattr(self,'operation',{}).get('state')=='returning':
+            raise self.server.error('Travel preparation is available only with no running or paused job.',409)
+    async def _optimization(self,request):return dict(getattr(self,'optimization',{'state':'idle'}))
+    async def _optimize(self,request):
+        async with self.action_lock:
+            if getattr(self,'optimization',{}).get('state')=='working':raise self.server.error('Travel preparation is already working.',409)
+            s=await self._snapshot(config=True);self._optimization_idle(s)
+            mode=request.get_str('mode');filename=request.get_str('filename');path=self._path(filename)
+            try:xy=float(request.get_str('xy_feed'));z=float(request.get_str('z_feed'))
+            except (TypeError,ValueError):raise self.server.error('Enter travel rates in mm/min.',400)
+            if not math.isfinite(xy) or not math.isfinite(z) or not 1<=xy<=30000 or not 1<=z<=3000:raise self.server.error('Invalid travel rates.',400)
+            if mode not in ['preview','create']:raise self.server.error('Choose preview or create.',400)
+            prior=getattr(self,'optimization',{})
+            if mode=='create' and (prior.get('state')!='preview' or prior.get('id')!=request.get_str('preview_id') or prior.get('source')!=filename or prior.get('xy_feed')!=xy or prior.get('z_feed')!=z):raise self.server.error('Preview these exact settings first.',409)
+            expected=prior.get('source_sha256') if mode=='create' else None
+            identity=uuid.uuid4().hex
+            self.optimization={'id':identity,'state':'working','source':filename,'mode':mode,'xy_feed':xy,'z_feed':z}
+            self.optimization_task=asyncio.create_task(self._prepare_travel(path,s,identity,xy,z,expected))
+            return dict(self.optimization)
+    async def _prepare_travel(self,path,s,identity,xy,z,expected):
+        try:
+            def prepare():
+                if path.stat().st_size>MAX_BYTES:raise ValueError('File exceeds the 64 MiB optimization limit.')
+                with path.open('rb') as source:data=source.read(MAX_BYTES+1)
+                if expected and hashlib.sha256(data).hexdigest()!=expected:raise ValueError('Source changed since preview. Preview it again.')
+                # Account for both current and explicitly programmed run overrides.
+                import re
+                factors=[1.,s.get('gcode_move',{}).get('speed_factor',1.)]
+                factors += [float(v)/100 for v in re.findall(rb'^\s*M220\s+S([\d.]+)\s*(?:;.*)?$',data,re.M|re.I)]
+                factor=max(factors);tool=s.get('toolhead',{});printer=s.get('configfile',{}).get('config',{}).get('printer',{})
+                maximum=float(tool.get('max_velocity',printer.get('max_velocity',0)));zmaximum=float(printer.get('max_z_velocity',maximum))
+                if maximum<=0 or zmaximum<=0:raise ValueError('Machine velocity limits are unavailable.')
+                if xy*factor>maximum*60+.001 or z*factor>zmaximum*60+.001:raise ValueError('Travel rate exceeds machine velocity limits after run-speed override. Lower the travel rates or override and preview again.')
+                return optimize_bytes(data,xy,z)
+            payload,report=await asyncio.to_thread(prepare)
+            if expected:
+                self._optimization_idle(await self._snapshot())
+                folder=self.root/'cnc_optimized';folder.mkdir(exist_ok=True)
+                if folder.is_symlink() or folder.resolve().parent!=self.root:raise ValueError('Unsafe output directory.')
+                name=path.stem[:80]+'-travel-'+identity[:10]+'.gcode';target=folder/name
+                # Never overwrite source or a previous optimized file.
+                with target.open('xb') as output:output.write(payload)
+                filename=target.relative_to(self.root).as_posix()
+                self.optimization={**self.optimization,**report,'state':'created','filename':filename,'message':'Copy created. Stage & verify it before Start.'}
+            else:self.optimization={**self.optimization,**report,'state':'preview','message':'Preview only; no file written.'}
+        except Exception as error:self.optimization={**self.optimization,'state':'error','message':str(error)}
     async def _stage(self,request):
         async with self.action_lock:
             if getattr(self,'operation',{}).get('state')=='returning':raise self.server.error('Resume return is already in progress',409)

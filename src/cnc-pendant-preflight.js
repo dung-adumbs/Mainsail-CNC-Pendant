@@ -80,18 +80,44 @@
   }catch(error){const m=ui().modal('Start blocked');m.insert(el('p',error.message));}finally{busy=false;render();}
  }
  function viewer(filename){const m=ui().modal('Toolpath viewer');m.dialog.classList.add('pendant-viewer-dialog');const name=el('p',filename,'pendant-viewer-filename');name.title=filename;m.insert(name);const frame=el('iframe');frame.title='Mainsail G-code toolpath viewer';frame.src='/viewer?filename='+encodeURIComponent('gcodes/'+filename);frame.className='preflight-viewer';m.insert(frame);m.insert(el('p','Visualization is not verification. Enable travel visibility for CNC paths.','pendant-viewer-note'));}
+ function optimizeTravel(filename,parentDialog){
+  const m=ui().modal('Optimize marked travel'),summary=el('pre','Preview before creating a copy.','preflight-details');m.insert(el('p',filename));
+  m.insert(el('p','Only versioned Fusion travel markers are eligible. Cutting, plunge and unproven moves keep their feeds. The original stays unchanged. Rates are mm/min; run-speed override still applies.'));
+  const inputs={};for(const [key,label,value,max] of [['xy_feed','XY travel (mm/min)',3000,30000],['z_feed','Z upward retract (mm/min)',180,3000]]){
+   const row=el('label',label,'dialog-field'),input=el('input');input.type='number';input.inputMode='decimal';input.min=1;input.max=max;input.value=value;input.setAttribute('aria-label',label);row.append(input);m.insert(row);inputs[key]=input;
+  }
+  m.insert(summary);let identity='',ready=false,created='',watch=null,working=false;
+  const values=()=>{const v={};for(const [key,input] of Object.entries(inputs)){const n=Number(input.value);if(!input.value.trim()||!Number.isFinite(n)||n<1||n>Number(input.max))throw Error('Enter valid travel rates.');v[key]=String(n);}return v;};
+  const render=result=>{
+   ready=result.state==='preview';working=result.state==='working';created=result.state==='created'?result.filename:'';
+   for(const input of Object.values(inputs))input.disabled=working;
+   preview.disabled=working;create.disabled=!ready;stageCopy.disabled=!created;
+   if(result.state==='working')summary.textContent='Preparing travel preview in the background…';
+   else if(result.state==='error')summary.textContent=result.message;
+   else summary.textContent=[result.message,`${result.changed_moves} changed moves · ${result.eligible_moves} eligible`,
+     `XY ${result.xy_feed} · Z retract ${result.z_feed} mm/min`,`Declared work clearance Z${result.clearance_mm} mm`,
+     `Nominal motion: ${result.nominal_before_seconds}s → ${result.nominal_after_seconds}s at 100%`,
+     'Estimate excludes pauses, acceleration, controller limits and unknown initial moves.',created?`New file: ${created}`:''].filter(Boolean).join('\n');
+  };
+  const poll=async()=>{if(!m.dialog.open)return;try{const r=await api('optimization');if(r.id!==identity)throw Error('Another client replaced this preview. Preview again.');render(r);if(working)watch=setTimeout(poll,750);}catch(error){working=false;preview.disabled=false;m.feedback.textContent=error.message;}};
+  async function request(mode){const rates=values();ready=false;create.disabled=true;stageCopy.disabled=true;const r=await api('optimize','POST',{mode,filename,...rates,...(mode==='create'?{preview_id:identity}:{})});identity=r.id;render(r);clearTimeout(watch);watch=setTimeout(poll,500);}
+  const preview=m.add('Preview',()=>request('preview')),create=m.add('Create optimized copy',async()=>{if(!ready)throw Error('Preview the current settings first.');try{await request('create');}finally{setTimeout(()=>{create.disabled=!ready;},0);}}),stageCopy=m.add('Stage & verify copy',async()=>{if(!created)throw Error('Create a copy first.');await stage(created);m.dialog.close();parentDialog?.close();});create.disabled=true;stageCopy.disabled=true;
+  for(const input of Object.values(inputs))input.addEventListener('input',()=>{ready=false;created='';create.disabled=true;stageCopy.disabled=true;summary.textContent='Settings changed. Preview again.';});
+  m.dialog.addEventListener('close',()=>clearTimeout(watch));
+ }
  async function files(){
   const m=ui().modal('Files / stage job'),search=el('input'),list=el('select'),details=el('div',undefined,'cnc-file-details');search.placeholder='Filter files';search.setAttribute('aria-label','Filter G-code files');search.className='file-search';list.size=6;list.className='file-list cnc-file-list';list.setAttribute('aria-label','G-code files');m.insert(search);m.insert(list);m.insert(details);
-  let selected='',sequence=0;
-  async function inspect(){const filename=list.value;selected=filename;const token=++sequence;details.replaceChildren();if(!filename)return;details.append(el('p','Reading file details…'));try{
+  let selected='',sequence=0,optimizer=null;
+  async function inspect(){if(optimizer)optimizer.disabled=true;const filename=list.value;selected=filename;const token=++sequence;details.replaceChildren();if(!filename)return;details.append(el('p','Reading file details…'));try{
     const [info,metadata]=await Promise.all([api('inspect?filename='+encodeURIComponent(filename)),ui().api('/server/files/metadata?filename='+encodeURIComponent(filename)).catch(()=>({}))]);if(token!==sequence||!m.dialog.open)return;
-    details.replaceChildren(el('strong',filename));details.append(el('p',`${(info.size/1e6).toFixed(2)} MB · modified ${new Date(info.modified).toLocaleString()}`));const warning=el('p',info.preliminary?.message||'No boundary metadata — full scan required.','file-fit-warning');if(info.preliminary?.fits===false)warning.classList.add('outside');details.append(warning);
+    details.replaceChildren(el('strong',filename));if(optimizer){optimizer.disabled=!info.optimizer?.compatible||!!info.optimizer?.already_optimized;optimizer.title=info.optimizer?.compatible?'Preview optional travel-feed changes':'Requires the marked CNC Pendant Fusion post';}details.append(el('div',info.optimizer?.already_optimized?'Travel-optimized copy · verify before Start':info.optimizer?.compatible?'CNC Pendant travel markers V1 · optimizer ready':'No supported travel markers · original feeds retained'));details.append(el('p',`${(info.size/1e6).toFixed(2)} MB · modified ${new Date(info.modified).toLocaleString()}`));const warning=el('p',info.preliminary?.message||'No boundary metadata — full scan required.','file-fit-warning');if(info.preliminary?.fits===false)warning.classList.add('outside');details.append(warning);
     if(info.metadata?.available)details.append(el('pre',`Header bounds · mm\n${'XYZ'.split('').map((axis,i)=>axis+' '+info.metadata.min[i].toFixed(3)+' to '+info.metadata.max[i].toFixed(3)).join('\n')}`,'preflight-details'));
     const known={estimated_time:'Estimated time (s)',object_height:'Reported height (mm)',slicer:'Generator',slicer_version:'Generator version'};for(const [key,label] of Object.entries(known))if(metadata[key]!==undefined)details.append(el('div',label+': '+metadata[key]));
     if(info.header_comments?.length){const fold=el('details'),summary=el('summary','Program comments / tool notes');fold.append(summary,el('pre',info.header_comments.join('\n'),'preflight-details'));details.append(fold);}
    }catch(error){if(token===sequence)details.replaceChildren(el('p',error.message));}}
   try{const all=(await ui().api('/server/files/list?root=gcodes')).filter(f=>/\.(gcode|gco|gc|nc|ngc|tap)$/i.test(f.path)).sort((a,b)=>b.modified-a.modified);const renderFiles=()=>{const old=list.value;list.replaceChildren();for(const file of all.filter(f=>f.path.toLowerCase().includes(search.value.toLowerCase()))){const item=el('option',file.path);item.value=file.path;item.disabled=/quarantine|old-machine-origin/i.test(file.path);list.append(item);}if([...list.options].some(o=>o.value===old))list.value=old;inspect();};search.addEventListener('input',renderFiles);list.addEventListener('change',inspect);renderFiles();
    m.add('Stage & verify',async()=>{if(!selected)throw Error('Select a file.');await stage(selected);m.dialog.close();});m.add('View toolpath',()=>{if(!selected)throw Error('Select a file.');viewer(selected);});
+   optimizer=m.add('Optimize travel…',()=>{if(!selected)throw Error('Select a file.');optimizeTravel(selected,m.dialog);});optimizer.disabled=true;
    const clear=m.add('Clear loaded file',async()=>{if(await clearLoadedFile())m.dialog.close();});clear.title='Clear the pendant selection; keep the G-code in Files.';clear.disabled=!state.filename||busy||isReturning()||!!latest?.pause_resume?.is_paused||latest?.print_stats?.state==='printing';
   }catch(error){m.feedback.textContent=error.message;}
  }

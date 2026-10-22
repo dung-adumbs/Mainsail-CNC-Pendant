@@ -8,7 +8,7 @@ Keep the UI installer's local backup and independently copy Moonraker configurat
 
 ## Install the components
 
-Copy `moonraker/cnc_gcode_scan.py` and `moonraker/cnc_preflight.py` into Moonraker's `moonraker/components/` directory. Add to moonraker.conf:
+Copy `moonraker/cnc_gcode_scan.py`, `moonraker/cnc_travel_optimize.py` and `moonraker/cnc_preflight.py` into Moonraker's `moonraker/components/` directory. Add to moonraker.conf:
 
 ```ini
 [cnc_preflight]

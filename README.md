@@ -14,6 +14,8 @@ A dedicated CNC control page alongside the standard Mainsail dashboard. Set up w
 
 **Installing with an AI assistant?** Give it the [AI implementation handoff](docs/AI-IMPLEMENTATION-HANDOFF.md), including the ready-to-copy request, compatibility checklist, testing and recovery requirements.
 
+**Posting from Fusion?** The [marked Klipper Fusion post and optional travel optimizer](docs/FUSION-TRAVEL.md) let you preview travel-feed changes, create a separate copy, then stage and verify it before Start.
+
 ## Watch it in use
 
 [![Watch the Mainsail CNC Pendant Android demonstration](https://img.youtube.com/vi/ZflacJoVMw0/hqdefault.jpg)](https://www.youtube.com/watch?v=ZflacJoVMw0)

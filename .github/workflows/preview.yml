@@ -21,6 +21,7 @@ jobs:
       - run: python tests/test_preflight_scan.py
       - run: python tests/test_preflight_guard.py
       - run: python tests/test_preflight_service.py
+      - run: python tests/test_travel_optimize.py
       - run: for file in src/*.js; do node --check "$file"; done
       - run: for file in tests/*.cjs; do node "$file"; done
   android:
