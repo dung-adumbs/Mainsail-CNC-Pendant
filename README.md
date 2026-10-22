@@ -12,6 +12,8 @@ A dedicated CNC control page alongside the standard Mainsail dashboard. Set up w
 
 [Install & recover](docs/SETUP.md) · [Android APK](android/apk/CNC-Pendant-preview.apk) · [Compatibility](docs/COMPATIBILITY.md) · [What persists](docs/PERSISTENCE.md) · [Roadmap](docs/ROADMAP.md)
 
+**Installing with an AI assistant?** Give it the [AI implementation handoff](docs/AI-IMPLEMENTATION-HANDOFF.md), including the ready-to-copy request, compatibility checklist, testing and recovery requirements.
+
 <table><tr><td width="50%">
 <img src="docs/images/current-phone.png" alt="Current phone-size CNC pendant" width="390">
 </td><td width="50%">
