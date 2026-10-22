@@ -1,8 +1,14 @@
 import sys,tempfile,unittest,hashlib
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'moonraker'))
-from cnc_gcode_scan import scan_file,evaluate_bounds,fingerprints
+from cnc_gcode_scan import scan_file,evaluate_bounds,fingerprints,thumbnail_data_url
 class ScanTests(unittest.TestCase):
+ def test_thumbnail_is_bounded_svg_not_an_approval(self):
+  import base64
+  m=self.scan('G90\nG21\nG1 X0 Y0 Z5\nG1 X100 Y0\nG1 X100 Y50\nG1 X0 Y50\nG1 X0 Y0\n')
+  svg=base64.b64decode(thumbnail_data_url(m).split(',',1)[1]).decode()
+  self.assertIn('X 100.0 × Y 50.0 mm',svg);self.assertIn('viewBox="0 0 320 210"',svg);self.assertNotIn('script',svg)
+  with self.assertRaises(ValueError):thumbnail_data_url(self.scan('G90\nG92 X0\nG1 X10 Y10\n'))
  def scan(self,text):
   with tempfile.TemporaryDirectory() as d:
    p=Path(d)/'test.gcode';p.write_text(text);return scan_file(p)

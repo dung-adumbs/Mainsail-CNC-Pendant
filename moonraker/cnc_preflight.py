@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio, datetime, hashlib, json, math, pathlib, uuid, logging
 from ..common import RequestType
-from .cnc_gcode_scan import scan_file, metadata_from_header, fingerprints, evaluate_bounds
+from .cnc_gcode_scan import scan_file, metadata_from_header, fingerprints, evaluate_bounds, thumbnail_data_url
 from .cnc_travel_optimize import inspect_header, optimize_bytes, MAX_BYTES
 
 class CNCPreflight:
@@ -12,8 +12,8 @@ class CNCPreflight:
         self.directory=pathlib.Path(config.get('cache_path','~/printer_data/cnc_preflight')).expanduser();self.directory.mkdir(parents=True,exist_ok=True)
         self.profile_path=pathlib.Path(config.get('profile_path','~/printer_data/config/cnc_preflight_profile.json')).expanduser()
         self.job={'state':'empty','message':'Select and stage a file.'};self.model=None;self.generation=0;self.scan_lock=asyncio.Lock();self.action_lock=asyncio.Lock();self.bounds_cache={};self.initial_machine=None;self.operation={'state':'idle'};self.operation_task=None
-        self.optimization={'state':'idle'};self.optimization_task=None
-        for name,method in [('inspect',RequestType.GET),('stage',RequestType.POST),('status',RequestType.GET),('verify',RequestType.POST),('start',RequestType.POST),('resume',RequestType.POST),('clear',RequestType.POST),('optimize',RequestType.POST),('optimization',RequestType.GET)]:
+        self.optimization={'state':'idle'};self.optimization_task=None;self.thumbnail_task=None;self.thumbnail_cancel=False;self.thumbnail_cache={}
+        for name,method in [('inspect',RequestType.GET),('stage',RequestType.POST),('status',RequestType.GET),('verify',RequestType.POST),('start',RequestType.POST),('resume',RequestType.POST),('clear',RequestType.POST),('optimize',RequestType.POST),('optimization',RequestType.GET),('thumbnail',RequestType.GET)]:
             self.server.register_endpoint('/machine/cnc_preflight/'+name,method,getattr(self,'_'+name))
     def _path(self,filename):
         if not filename or any(c in filename for c in '\r\n\x00\"\'\\{}') or len(filename)>512:raise self.server.error('Invalid filename',400)
@@ -58,6 +58,41 @@ class CNCPreflight:
         with path.open('rb') as source:header=source.read(16384).decode('utf-8',errors='replace')
         comments=[line.lstrip('; ').strip() for line in header.splitlines()[:70] if line.strip().startswith(';')]
         return {'filename':filename,'size':stat.st_size,'modified':datetime.datetime.fromtimestamp(stat.st_mtime,datetime.timezone.utc).isoformat(),'metadata':box,'preliminary':self._preliminary(s,box),'header_comments':comments,'optimizer':inspect_header(header)}
+    async def _thumbnail(self,request):
+        path=self._path(request.get_str('filename'));stat=path.stat()
+        key=hashlib.sha256((str(path)+'|'+str(stat.st_size)+'|'+str(stat.st_mtime_ns)).encode()).hexdigest()
+        cached=self.thumbnail_cache.get(key)
+        if cached:return cached
+        folder=self.directory/'thumbnails';record=folder/(key+'.json')
+        if record.exists():
+            try:
+                cached=json.loads(record.read_text());self.thumbnail_cache[key]=cached;return cached
+            except (OSError,ValueError):pass
+        if stat.st_size>64*1024*1024:return {'state':'error','message':'File too large for thumbnail generation.'}
+        model=self.model
+        if model and self.job.get('filename')==path.relative_to(self.root).as_posix() and model.size==stat.st_size and model.modified_ns==stat.st_mtime_ns:
+            try:return {'state':'ready','data_url':thumbnail_data_url(model),'sha256':model.sha256}
+            except ValueError:return {'state':'error'}
+        if self.job.get('state')=='scanning' or (self.thumbnail_task and not self.thumbnail_task.done()):return {'state':'working'}
+        status=await self._snapshot()
+        if status.get('print_stats',{}).get('state') in ['printing','paused'] or status.get('pause_resume',{}).get('is_paused') or status.get('virtual_sdcard',{}).get('is_active'):
+            return {'state':'working','message':'Thumbnail generation waits until the job is idle. Existing previews remain available.'}
+        self.thumbnail_cancel=False;self.thumbnail_task=asyncio.create_task(self._make_thumbnail(path,key,folder,stat))
+        return {'state':'working'}
+    async def _make_thumbnail(self,path,key,folder,original_stat):
+        try:
+            async with self.scan_lock:
+                def progress(*args):
+                    if self.thumbnail_cancel:raise ValueError('Thumbnail deferred for job verification.')
+                model=await asyncio.to_thread(scan_file,path,progress)
+                progress();result={'state':'ready','data_url':thumbnail_data_url(model),'sha256':model.sha256}
+            current=path.stat()
+            if current.st_size!=original_stat.st_size or current.st_mtime_ns!=original_stat.st_mtime_ns:return
+            self.thumbnail_cache[key]=result
+            if len(self.thumbnail_cache)>20:self.thumbnail_cache.pop(next(iter(self.thumbnail_cache)))
+            folder.mkdir(exist_ok=True);temporary=folder/(key+'.tmp');temporary.write_text(json.dumps(result));temporary.replace(folder/(key+'.json'))
+        except Exception:
+            if not self.thumbnail_cancel:self.thumbnail_cache[key]={'state':'error'}
     def _optimization_idle(self,s):
         if s.get('webhooks',{}).get('state')!='ready' or s.get('pause_resume',{}).get('is_paused') or s.get('virtual_sdcard',{}).get('is_active') or s.get('print_stats',{}).get('state') in ['printing','paused'] or getattr(self,'operation',{}).get('state')=='returning':
             raise self.server.error('Travel preparation is available only with no running or paused job.',409)
@@ -111,7 +146,7 @@ class CNCPreflight:
             filename=request.get_str('filename');path=self._path(filename);s=await self._snapshot()
             if s.get('virtual_sdcard',{}).get('is_active'):raise self.server.error('Pause or stop the running file before staging',409)
             if s.get('pause_resume',{}).get('is_paused') and s.get('print_stats',{}).get('filename')!=filename:raise self.server.error('While paused, stage only the active file',409)
-            self.operation={'state':'idle'}
+            self.thumbnail_cancel=True;self.operation={'state':'idle'}
             self.generation+=1;generation=self.generation;self.model=None;self.bounds_cache={};self.initial_machine=s.get('gcode_move',{}).get('position',[0,0,0])[:3]
             self.job={'id':uuid.uuid4().hex,'filename':filename,'state':'scanning','progress':0,'lines':0,'message':'Scanning G-code in the background…','metadata':metadata_from_header(path)}
             asyncio.create_task(self._scan(path,generation));return dict(self.job)

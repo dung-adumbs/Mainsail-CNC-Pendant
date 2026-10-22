@@ -11,6 +11,38 @@ WORDS=re.compile(r'([A-Za-z])\s*('+NUMBER+r')')
 COMMAND=re.compile(r'^([A-Za-z_]+)(\d+(?:\.\d+)?)?(?=\s|[A-Za-z]|$)')
 BOUNDS=re.compile(r'Operation\s+\d+\s+bounds\s+mm:\s*X\s*('+NUMBER+r')\.\.('+NUMBER+r')\s+Y\s*('+NUMBER+r')\.\.('+NUMBER+r')\s+Z\s*('+NUMBER+r')\.\.('+NUMBER+r')',re.I)
 VERSION=1
+
+def thumbnail_data_url(model):
+    """Sampled top-view geometry for identification only, never verification."""
+    import base64
+    if model.issues:raise ValueError('Unsupported G-code: use the full viewer.')
+    points=[];group=0;unknown=False
+    for n,mask in enumerate(model.masks):
+        if mask&3:
+            if not unknown:group+=1
+            unknown=True;continue
+        unknown=False;x,y=model.coords[n*3:n*3+2]
+        if not math.isfinite(x) or not math.isfinite(y):continue
+        if not points or (x,y,group)!=points[-1]:points.append((x,y,group))
+    if len(points)<2:raise ValueError('Not enough known XY motion for a preview.')
+    xmin=min(p[0] for p in points);xmax=max(p[0] for p in points);ymin=min(p[1] for p in points);ymax=max(p[1] for p in points)
+    spanx=xmax-xmin;spany=ymax-ymin
+    if max(spanx,spany)<1e-8:raise ValueError('No XY path to display.')
+    scale=min(292/max(spanx,.001),170/max(spany,.001));left=(320-spanx*scale)/2;top=(184-spany*scale)/2
+    # Bound SVG size; preserve actual extents while sampling dense programs.
+    count=len(points);indices={0,count-1}
+    indices.update(round(i*(count-1)/min(count-1,2999)) for i in range(min(count,3000)))
+    for axis in [0,1]:
+        indices.add(min(range(count),key=lambda i:points[i][axis]));indices.add(max(range(count),key=lambda i:points[i][axis]))
+    path=[];previous_group=None
+    for index in sorted(indices):
+        x,y,g=points[index];op='M' if previous_group!=g else 'L';previous_group=g
+        path.append(f'{op}{left+(x-xmin)*scale:.2f},{top+(ymax-y)*scale:.2f}')
+    svg=('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="210" viewBox="0 0 320 210">'
+         '<rect width="320" height="210" fill="#171717"/>'
+         '<path d="'+' '.join(path)+'" fill="none" stroke="#69c5ff" stroke-width=".65"/>'
+         f'<text x="160" y="202" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#ccc">X {spanx:.1f} × Y {spany:.1f} mm · sampled</text></svg>')
+    return 'data:image/svg+xml;base64,'+base64.b64encode(svg.encode()).decode()
 @dataclass
 class Model:
     filename: str
