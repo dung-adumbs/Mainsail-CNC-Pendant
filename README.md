@@ -66,6 +66,7 @@ Toolpath visualization and software guards do not certify fixture or cutter clea
 - Shared **mm / cm / inch** units; double-tap to switch. Inch jogging uses useful 0.001 / 0.01 / 0.1-inch fine steps, rather than awkward conversions of metric increments.
 - Machine limits / editable machine position / axis / editable work position / work limits. **Enter commits; leaving cancels.** Machine-coordinate entries are converted through the current work offset before travel and clearance checks.
 - Independent compact **Run speed** and **Jog speed** controls. Run preset shows 50% at current speeds up to 60%, and 100% at 61% or above. 300% Max requires confirmation.
+- **Motion · Live / Requested** shows Klipper's planned live tool velocity and last parsed feed including Run speed override, in mm/s. Live is not encoder feedback; Requested may be ahead of motion because of buffering and remains set while idle.
 - Safe work-Z permission alongside one **Z Safety** dialog for height and jog-speed cap, with explicit Save/Cancel. The cap limits the selected jog speed rather than replacing it. Relocks above safe height and on origin changes.
 - Gray unavailable moves, green normal moves, amber downward destinations below safe work height. Forced recovery uses explicit red controls.
 - **IN MOTION — Additional moves will be queued. Proceed with caution.** Uses waiting requests plus controller motion timing; it is not an exact count of Klipper's full queue.

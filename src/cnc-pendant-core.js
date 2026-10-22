@@ -658,7 +658,7 @@
     if (document.getElementById('lowrider-endstops')) {
       let states = {};
       try {
-        const statusResponse = await fetch('/printer/objects/query?toolhead&idle_timeout&webhooks&print_stats&stepper_enable&gcode_move&pause_resume&led%20work_lights&gcode_macro%20LED_BREATHE&gcode_macro%20_LED_IDLE_STATE&gcode_macro%20PAUSE_BASE&virtual_sdcard&cnc_force_jog', {cache:'no-store',signal:AbortSignal.timeout(5000)});
+        const statusResponse = await fetch('/printer/objects/query?toolhead&idle_timeout&webhooks&print_stats&stepper_enable&gcode_move&pause_resume&led%20work_lights&gcode_macro%20LED_BREATHE&gcode_macro%20_LED_IDLE_STATE&gcode_macro%20PAUSE_BASE&virtual_sdcard&cnc_force_jog&motion_report', {cache:'no-store',signal:AbortSignal.timeout(5000)});
         const status = (await statusResponse.json()).result?.status;
         controlStatus = status;document.dispatchEvent(new CustomEvent('cnc-pendant-status',{detail:status}));updateAndroidStatus(status);
         document.querySelectorAll('input[data-lowrider-position]').forEach(input=>{input.disabled=forcedSending||!!status?.cnc_force_jog?.busy||!!manualMotionReason(status,true)||!status.toolhead?.homed_axes?.includes(input.dataset.lowriderPosition.toLowerCase());if(document.activeElement!==input&&!input.dataset.sending)input.value=input.previousElementSibling.value;});
@@ -927,7 +927,7 @@
   }
   async function sendDirectJog(axis,target,confirmed=false,machine=false) {
     await loadKeepout();
-    const response=await fetch('/printer/objects/query?webhooks&print_stats&pause_resume&toolhead&gcode_move&idle_timeout&virtual_sdcard&cnc_force_jog',{cache:'no-store'});
+    const response=await fetch('/printer/objects/query?webhooks&print_stats&pause_resume&toolhead&gcode_move&idle_timeout&virtual_sdcard&cnc_force_jog&motion_report',{cache:'no-store'});
     const status=(await response.json()).result?.status;
     if(!response.ok||status?.webhooks?.state!=='ready')throw Error('Klipper is not ready');
     const unavailable=manualMotionReason(status,true);if(unavailable)throw Error(unavailable);
