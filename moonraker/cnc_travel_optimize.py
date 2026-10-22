@@ -7,7 +7,7 @@ from __future__ import annotations
 import hashlib, math, re
 
 HEADER='; CNC_PENDANT_OPTIMIZER: V1'
-KINDS={'TRAVEL_XY','RETRACT_Z','POSITION_Z','CUT','PLUNGE','LINK','UNKNOWN'}
+KINDS={'TRAVEL_XY','RETRACT_Z','POSITION_Z','TRAVEL_Z','CUT','PLUNGE','LINK','UNKNOWN'}
 NUMBER=r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)'
 WORD=re.compile(r'([XYZF])\s*('+NUMBER+r')',re.I)
 MAX_BYTES=64*1024*1024
@@ -25,7 +25,7 @@ def inspect_header(text):
         if m:offset=float(m[1])
     valid_plane=clearance is not None and math.isfinite(clearance) and (clearance>=1 if stock_top is None and offset is None else stock_top is not None and offset is not None and math.isfinite(stock_top) and math.isfinite(offset) and offset>=1 and abs(clearance-stock_top-offset)<0.002)
     return {'compatible':compatible and valid_plane,
-            'version':1 if compatible else None,'clearance_mm':clearance,
+            'version':1 if compatible else None,'clearance_mm':clearance,'stock_top_mm':stock_top,
             'already_optimized':any(line.startswith('; CNC_OPTIMIZED:') for line in lines)}
 
 def optimize_bytes(data,xy_feed,z_feed):
@@ -71,6 +71,14 @@ def optimize_bytes(data,xy_feed,z_feed):
                     raise ValueError(f'Line {number}: marked XY travel is not level above declared clearance.')
                 if known:
                     eligible+=1;new_feed=xy_feed
+            elif kind=='TRAVEL_Z':
+                top=info.get('stock_top_mm')
+                if top is None or not math.isfinite(top):raise ValueError(f'Line {number}: Z travel requires stock-top metadata.')
+                if 'Z' not in values or any(a in values and (delta[a] is None or abs(delta[a])>1e-7) for a in 'XY'):raise ValueError(f'Line {number}: Z travel must be vertical.')
+                if pos['Z'] is not None:
+                    threshold=top if target['Z']>pos['Z'] else clearance
+                    if min(pos['Z'],target['Z'])<threshold-1e-7:raise ValueError(f'Line {number}: Z travel crosses its stock/clearance boundary.')
+                    if known and abs(delta['Z'])>1e-7:eligible+=1;new_feed=z_feed
             elif kind=='RETRACT_Z':
                 if any(a in values and (delta[a] is None or abs(delta[a])>1e-7) for a in 'XY') or 'Z' not in values:
                     raise ValueError(f'Line {number}: marked retract must be vertical.')
@@ -80,7 +88,7 @@ def optimize_bytes(data,xy_feed,z_feed):
                     eligible+=1;new_feed=z_feed
             if known:
                 distance=math.sqrt(sum(delta[a]**2 for a in 'XYZ'));before+=distance/feed*60;after+=distance/new_feed*60
-                if kind in ['TRAVEL_XY','RETRACT_Z']:travel_distance+=distance
+                if kind in ['TRAVEL_XY','RETRACT_Z','TRAVEL_Z']:travel_distance+=distance
             else:unknown_time=True
             if abs(feed-new_feed)>1e-7:
                 # Replace only F. All coordinates, move order and comments remain unchanged.

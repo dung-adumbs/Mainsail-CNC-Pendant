@@ -60,3 +60,12 @@ console.log('PASS: CAM intent, explicit feeds, segmented markers, retract/XY/low
 
 {const {c,output}=context();c.emittedPosition={X:0,Y:0,Z:6};c.onLinear(20,0,6,1000);assert(output.includes('; CNC_MOVE: TRAVEL_XY'));}
 {const {c,output}=context();c.getGlobalParameter=()=>6;c.emittedPosition={X:0,Y:0,Z:6};c.onLinear(20,0,6,1000);assert(!output.includes('; CNC_MOVE: TRAVEL_XY'));}
+
+{
+ const {c,output}=context();c.getGlobalParameter=()=>1;c.emittedPosition={X:2,Y:3,Z:-5};c.onLinear(2,3,16,1000);
+ const moves=output.filter(x=>x.startsWith('G1'));assert(moves[0].includes('Z1.000 F1000.0'));assert(output.includes('; CNC_MOVE: TRAVEL_Z'));assert.equal(c.emittedPosition.Z,16);
+}
+{
+ const {c,output}=context();c.getGlobalParameter=()=>25;c.emittedPosition={X:2,Y:3,Z:40};c.onLinear(2,3,20,700);
+ const moves=output.filter(x=>x.startsWith('G1'));assert(moves.some(x=>x.includes('Z30.000 F180.0')));assert.equal(moves.at(-1),'G1 Z20.000 F700.0');assert(moves.filter(x=>Number(x.match(/Z([\d.]+)/)[1])>=30).every(x=>x.endsWith('F180.0')));
+}

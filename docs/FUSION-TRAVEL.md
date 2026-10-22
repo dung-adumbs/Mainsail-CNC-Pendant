@@ -65,3 +65,7 @@ Version 0.9 supersedes the CAM-category-only eligibility rules below. The cleara
 
 All level XY moves at or above the declared plane use travel feed, including moves Fusion labels CUT. Set the offset above every fastener/clamp crossed by travel. This is a user-declared clearance rule, not collision detection. Descending, ramping and below-plane moves keep their feeds. A new actual Fusion post must be inspected before running; old CUT markers are not retroactively changed. Pendant Safe Z remains a separate manual-jog setting.
 
+# Pure Z boundary splitting (post 0.10)
+
+Pure vertical linear moves now split at stock top on ascent, or stock top plus clearance offset on descent. Above stock top an ascending segment uses Z travel feed; a descending segment uses Z travel feed only down to the clearance plane. Remaining portions retain their original feed. Combined XY/Z, ramps and helices are not eligible for this rule. `TRAVEL_Z` markers let the optimizer change the separate Z travel feed while validating the applicable boundary against stock metadata. Unknown initial positioning is not accelerated by this rule. Destinations and geometric paths are unchanged; extra collinear points identify feed changes. Repost with 0.10 and update the Pi optimizer before optimizing these markers.
+

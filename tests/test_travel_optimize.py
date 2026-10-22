@@ -53,6 +53,12 @@ class Travel(unittest.TestCase):
   header=HEADER.replace('CNC_TRAVEL_CLEARANCE_MM: 5','CNC_TRAVEL_CLEARANCE_MM: -5\n; CNC_STOCK_TOP_WORK_Z_MM: -10\n; CNC_TRAVEL_OFFSET_MM: 5')
   self.assertTrue(travel.inspect_header(header)['compatible'])
   self.assertFalse(travel.inspect_header(header.replace('OFFSET_MM: 5','OFFSET_MM: 6'))['compatible'])
+ def test_vertical_travel_boundaries(self):
+  base=PROGRAM.replace('; CNC_TRAVEL_CLEARANCE_MM: 5','; CNC_TRAVEL_CLEARANCE_MM: 5\n; CNC_STOCK_TOP_WORK_Z_MM: 0\n; CNC_TRAVEL_OFFSET_MM: 5')
+  extra='; CNC_MOVE: TRAVEL_Z\nG1 Z5 F180\n'
+  result,_=self.run_program(base+extra);self.assertIn(b'G1 Z5 F180',result)
+  with self.assertRaises(ValueError):self.run_program(base+extra.replace('Z5','Z4'))
+  result,_=self.run_program(base+'; CNC_MOVE: TRAVEL_Z\nG1 Z20 F100\n');self.assertIn(b'G1 Z20 F180',result)
  def test_reoptimization_rejected(self):
   result,_=self.run_program()
   with self.assertRaises(ValueError):travel.optimize_bytes(result,3000,180)
