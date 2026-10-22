@@ -30,7 +30,7 @@ These screenshots were captured by the owner in the Android app during LowRider 
 <td width="50%" valign="top"><strong>Job running · millimeters</strong><br><a href="docs/images/android-job-running.jpg"><img src="docs/images/android-job-running.jpg" alt="Job running · millimeters: Large Pause control, machine/work coordinates and run-speed adjustment." width="340"></a><br>Large Pause control, machine/work coordinates and run-speed adjustment.</td>
 </tr>
 <tr>
-<td width="50%" valign="top"><strong>Full-screen toolpath viewer</strong><br><a href="docs/images/android-toolpath-fullscreen.jpg"><img src="docs/images/android-toolpath-fullscreen.jpg" alt="Full-screen toolpath viewer: The expanded Mainsail viewer showing the P38 toolpath on the phone." width="340"></a><br>The expanded Mainsail viewer showing the P38 toolpath on the phone.</td>
+<td width="50%" valign="top"><strong>Full-screen toolpath viewer</strong><br><a href="docs/images/android-toolpath-fullscreen.jpg"><img src="docs/images/android-toolpath-fullscreen.jpg" alt="Full-screen toolpath viewer: The expanded Mainsail viewer showing a G-code toolpath on the phone." width="340"></a><br>The expanded Mainsail viewer showing a G-code toolpath on the phone.</td>
 <td width="50%" valign="top"><strong>Verified job start</strong><br><a href="docs/images/android-verified-start.jpg"><img src="docs/images/android-verified-start.jpg" alt="Verified job start: Current work offsets and programmed travel are checked before the Start confirmation." width="340"></a><br>Current work offsets and programmed travel are checked before the Start confirmation.</td>
 </tr>
 <tr>
@@ -67,7 +67,7 @@ The standard Mainsail dashboard stays available. Open `/cnc-pendant.html` direct
 
 ## Actual G-code verification
 
-Select a file for a quick metadata warning, then stage it for background scanning of its actual G-code. Start and Resume check current work offsets, machine bounds, file fingerprint and reviewed macro profile. Separate analysis files leave original G-code unchanged. Paused X/Y re-zeroing is blocked; a new tool Z zero requires re-verification. Tested P38 files with 9,220–224,482 moves scanned in about 1.5–40 seconds on the reference Pi. Unsupported commands fail closed.
+Select a file for a quick metadata warning, then stage it for background scanning of its actual G-code. Start and Resume check current work offsets, machine bounds, file fingerprint and reviewed macro profile. Separate analysis files leave original G-code unchanged. Paused X/Y re-zeroing is blocked; a new tool Z zero requires re-verification. Tested G-code files with 9,220–224,482 moves scanned in about 1.5–40 seconds on the reference Pi. Unsupported commands fail closed.
 
 **The full system requires the Moonraker component and Klipper guards; the UI installer alone is insufficient.** See [full-system setup](docs/PREFLIGHT-SETUP.md). Travel verification does not establish fixture clearance.
 

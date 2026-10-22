@@ -12,7 +12,7 @@ Unsupported commands, inherited unknown coordinate modes, R-form arcs, unmatched
 
 **Scope:** this checks programmed travel against configured machine limits. It does not certify stock, clamps, fixtures, tool clearance, cutting parameters, or spindle power. Viewer visualization is separate from verification; enable travel display for non-extruding CNC paths.
 
-Five P38 files scanned successfully on the Pi: roughly 1.5–40 seconds, from 9,220 to 224,482 moves. No physical motion was used for verification. Start/Resume gates, modified-file detection, offset changes, arc extrema, loop bounds, paused XY blocking and return-path overflow have automated tests. A supervised short air-cut remains the next physical commissioning step.
+Five G-code files scanned successfully on the Pi: roughly 1.5–40 seconds, from 9,220 to 224,482 moves. No physical motion was used for verification. Start/Resume gates, modified-file detection, offset changes, arc extrema, loop bounds, paused XY blocking and return-path overflow have automated tests. A supervised short air-cut remains the next physical commissioning step.
 
 Recovery is installation-specific. Retain local deployment backups; see RECOVERY.md and PREFLIGHT-SETUP.md.
 
