@@ -14,6 +14,14 @@ A dedicated CNC control page alongside the standard Mainsail dashboard. Set up w
 
 **Installing with an AI assistant?** Give it the [AI implementation handoff](docs/AI-IMPLEMENTATION-HANDOFF.md), including the ready-to-copy request, compatibility checklist, testing and recovery requirements.
 
+## Watch it in use
+
+[![Watch the Mainsail CNC Pendant Android demonstration](https://img.youtube.com/vi/ZflacJoVMw0/hqdefault.jpg)](https://www.youtube.com/watch?v=ZflacJoVMw0)
+
+**[Watch the 3-minute Android demonstration →](https://www.youtube.com/watch?v=ZflacJoVMw0)**
+
+Recorded by the owner on the LowRider V4: homing controls, file selection, the running-job display, unit changes, and jogging during a pause. This is a demonstration of the early preview in use; follow the setup and compatibility guides for installation.
+
 <table><tr><td width="50%">
 <img src="docs/images/current-phone.png" alt="Current phone-size CNC pendant" width="390">
 </td><td width="50%">
