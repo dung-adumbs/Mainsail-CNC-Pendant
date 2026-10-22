@@ -60,6 +60,7 @@ Toolpath visualization and software guards do not certify fixture or cutter clea
 ## Controls built for CNC
 
 - Files can be sorted by date (newest/oldest) or name (A–Z/Z–A), with the chosen order remembered on that device.
+- **Upload G-code** opens your PC or phone file picker and selects the uploaded file for review. Existing names are rejected; uploading never starts a job.
 - File selection shows an available embedded thumbnail or generates a cached, sampled XY toolpath preview. Tap a generated preview to open the full viewer. New previews wait while a job is running or paused; visualization does not replace travel verification.
 - XY jog cross, three-row Z controls and a distinct Coarse/Fine toggle.
 - Shared **mm / cm / inch** units; double-tap to switch. Inch jogging uses useful 0.001 / 0.01 / 0.1-inch fine steps, rather than awkward conversions of metric increments.
