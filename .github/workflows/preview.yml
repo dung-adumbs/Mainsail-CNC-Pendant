@@ -31,8 +31,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - run: python3 tools/build_android.py --jdk-dir "$JAVA_HOME" --sdk-dir "$ANDROID_HOME"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - run: python3 tools/build_android.py --jdk-dir "$JAVA_HOME" --sdk-dir "$ANDROID_SDK_ROOT"
       - uses: actions/upload-artifact@v4
         with:
           name: CNC-Pendant-Android-preview
