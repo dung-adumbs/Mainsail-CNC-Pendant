@@ -49,3 +49,9 @@ console.log('PASS: CAM intent, explicit feeds, segmented markers, retract/XY/low
  const {c,output}=context();c.MOVEMENT_LINK_DIRECT=9;c.movement=9;c.emittedPosition={X:0,Y:0,Z:2};c.onLinear(20,0,2,1000);
  assert(!output.includes('; CNC_MOVE: TRAVEL_XY'));assert(output.filter(x=>x.startsWith('G1')).every(x=>x.endsWith('F1000.0')));
 }
+
+{
+ const {c,output}=context();c.MOVEMENT_LINK_DIRECT=9;c.emittedPosition={X:0,Y:0,Z:6};c.onMovement(9);c.onLinear(20,0,6,1000);
+ assert(output.includes('; CNC_MOVE: TRAVEL_XY'));assert(output.includes('; CNC_CAM_MOVEMENT: 9 LINK_DIRECT'));
+ c.onMovement(1);c.onLinear(30,0,6,1000);assert.equal(output.at(-1).split(' ').at(-1),'F1000.0');
+}

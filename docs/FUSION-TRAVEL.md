@@ -55,3 +55,7 @@ Ordinary Manual NC Stop and Optional Stop entries are same-tool fastener/inspect
 
 Level XY moves that Fusion explicitly classifies as `MOVEMENT_LINK_DIRECT` can use marked travel at or above the declared clearance plane. This includes eligible links inside an operation, rather than only operation-entry positioning. Cutting links, ramps, helices and below-clearance direct links retain their original feeds. Do not infer travel from height alone. Repost to apply this classification; existing files marked CUT are not reinterpreted by the optimizer.
 
+# CAM movement notifications (post 0.8)
+
+The post captures Fusion's `onMovement` callback and emits `CNC_CAM_MOVEMENT` diagnostic comments when the category changes. This supplies movement intent to the rapid/direct-link classification and permits diagnosis of links that remain at cutting feed. The v0.7 reference file still contained 38 level Z6 bore-transfer lines marked CUT; v0.8 requires a fresh actual Fusion post to confirm those categories. No existing CUT lines are automatically reclassified.
+
