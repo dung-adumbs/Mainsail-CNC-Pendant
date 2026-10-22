@@ -40,6 +40,11 @@ class Travel(unittest.TestCase):
  def test_pause_invalidates_coordinate_knowledge(self):
   result,report=self.run_program(PROGRAM.replace('; CNC_MOVE: RETRACT_Z','PAUSE_BASE\n; CNC_MOVE: RETRACT_Z'))
   self.assertIn('G1 Z10 F100',result.decode());self.assertEqual(report['changed_moves'],1)
+ def test_xy_after_pause_keeps_feed_until_height_reestablished(self):
+  program=PROGRAM+'PAUSE_BASE\n; CNC_MOVE: TRAVEL_XY\nG1 X100 Y100 F100\n; CNC_MOVE: TRAVEL_XY\nG1 X110 Y100 F100\n; CNC_MOVE: POSITION_Z\nG1 Z10 F100\n; CNC_MOVE: TRAVEL_XY\nG1 X120 Y100 F100\n'
+  result,report=self.run_program(program);text=result.decode()
+  self.assertIn('G1 X100 Y100 F100',text);self.assertIn('G1 X110 Y100 F100',text)
+  self.assertIn('G1 X120 Y100 F3000',text);self.assertEqual(report['changed_moves'],4)
  def test_reoptimization_rejected(self):
   result,_=self.run_program()
   with self.assertRaises(ValueError):travel.optimize_bytes(result,3000,180)

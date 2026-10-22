@@ -62,7 +62,7 @@ def optimize_bytes(data,xy_feed,z_feed):
             delta={a:(target[a]-pos[a] if target[a] is not None and pos[a] is not None else None) for a in 'XYZ'}
             feed=values['F'];new_feed=feed;kind=pending;pending=None
             if kind=='TRAVEL_XY':
-                if target['Z'] is None or pos['Z'] is None or abs(target['Z']-pos['Z'])>1e-7 or min(pos['Z'],target['Z'])<clearance:
+                if target['Z'] is not None and pos['Z'] is not None and (abs(target['Z']-pos['Z'])>1e-7 or min(pos['Z'],target['Z'])<clearance):
                     raise ValueError(f'Line {number}: marked XY travel is not level above declared clearance.')
                 if known:
                     eligible+=1;new_feed=xy_feed
