@@ -47,3 +47,7 @@ Rollback restores the matching previous UI and Moonraker modules together and re
 Automated tests exercise marker boundaries, geometry preservation, cutting/plunge feed preservation, malformed/legacy files, unknown starting positions, paused coordinate invalidation, stale-source rejection, active-job blocking and run-override limits. Post callback tests exercise CAM intent and retract/XY/lower ordering. Autodesk's installed post engine also interrogates the CPS successfully. This is not equivalent to posting every CAM strategy through Fusion or physical commissioning.
 
 Design ideas were informed by the V1E discussions on [Fusion posts](https://forum.v1e.com/t/fusion-360-post-processor/49534) and [rapid conversion](https://forum.v1e.com/t/rapid-movements-for-fusion360-gcode-script/51379), and Autodesk's [post API](https://cam.autodesk.com/posts/reference/classPostProcessor.html). No third-party post was copied into this implementation.
+# Same-tool Manual NC stops (post 0.6)
+
+Ordinary Manual NC Stop and Optional Stop entries are same-tool fastener/inspection pauses. No special note text is required. The post emits `; CNC_PAUSE: SAME_TOOL_RETURN` immediately before `PAUSE_BASE`, allowing the optimizer to retain planned coordinates across that stop. Startup/tool setup pauses remain conservative. This post still rejects multiple tools in one file. Resume verification and return-path checks remain required; this marker does not authorize a zero change or bypass preflight. Previously posted files must be reposted to get the new markers.
+

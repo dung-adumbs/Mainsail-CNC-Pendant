@@ -45,6 +45,10 @@ class Travel(unittest.TestCase):
   result,report=self.run_program(program);text=result.decode()
   self.assertIn('G1 X100 Y100 F100',text);self.assertIn('G1 X110 Y100 F100',text)
   self.assertIn('G1 X120 Y100 F3000',text);self.assertEqual(report['changed_moves'],4)
+ def test_explicit_same_tool_pause_preserves_planned_coordinates(self):
+  program=PROGRAM.replace('; CNC_MOVE: RETRACT_Z','; CNC_PAUSE: SAME_TOOL_RETURN\nPAUSE_BASE\n; CNC_MOVE: RETRACT_Z')
+  result,report=self.run_program(program);self.assertEqual(report['changed_moves'],3)
+  self.assertIn('G1 Z10 F180',result.decode())
  def test_reoptimization_rejected(self):
   result,_=self.run_program()
   with self.assertRaises(ValueError):travel.optimize_bytes(result,3000,180)

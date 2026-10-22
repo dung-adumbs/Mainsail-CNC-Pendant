@@ -38,3 +38,5 @@ assert(source.includes('CNC_PENDANT_OPTIMIZER: V1'));assert(source.includes('CNC
  if(process.env.CNC_FIXTURE_OUTPUT)fs.writeFileSync(process.env.CNC_FIXTURE_OUTPUT,output.join('\n')+'\n');
 }
 console.log('PASS: CAM intent, explicit feeds, segmented markers, retract/XY/lower ordering.');
+
+{const {c,output}=context();c.pauseHere('Fasteners',true);assert.equal(output[output.indexOf('PAUSE_BASE')-1],'; CNC_PAUSE: SAME_TOOL_RETURN');}

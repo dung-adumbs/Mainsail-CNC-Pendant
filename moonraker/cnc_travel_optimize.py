@@ -88,7 +88,9 @@ def optimize_bytes(data,xy_feed,z_feed):
         upper=code.upper()
         if upper=='G90':absolute=True
         elif upper=='G21':metric=True
-        elif upper=='PAUSE_BASE':pos={a:None for a in 'XYZ'}
+        elif upper=='PAUSE_BASE':
+            # Only the explicitly marked one-tool stop preserves planned coordinates.
+            if not output or output[-1].strip()!='; CNC_PAUSE: SAME_TOOL_RETURN':pos={a:None for a in 'XYZ'}
         elif upper in ['M400','START_JOB','END_JOB','LED_ON','LED_OFF']:pass
         elif re.fullmatch(r'M220\s+S'+NUMBER,code,re.I):
             if float(code.upper().split('S')[1])<=0:raise ValueError('Invalid feed override.')
