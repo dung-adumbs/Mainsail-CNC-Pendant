@@ -109,3 +109,17 @@ html[data-native-app=android] .pendant-header{padding-right:60px}
 .pendant-safety-dialog{position:fixed;top:calc(env(safe-area-inset-top) + 12px);margin:0 auto;max-height:calc(100dvh - 24px);width:360px}.pendant-safety-dialog .dialog-field{flex-wrap:wrap}.pendant-safety-dialog input{font-size:16px}
 @media(max-width:799px),(pointer:coarse){#pendant-scale{max-width:none;width:100%;transform:none!important}.pendant-column{padding:0 3px}#pendant-viewport{overflow:auto;overscroll-behavior:contain}.pendant-header #pendant-estop{width:84px}.pendant-header{gap:7px}.pendant-header>a{font-size:11px}}
 @media(min-width:800px) and (pointer:fine){.pendant-header{height:68px}#pendant-viewport{top:auto}.pendant-header #pendant-estop{width:170px}}
+
+/* The toolpath is a full-window workspace, independent of the pendant column. */
+dialog.pendant-viewer-dialog{position:fixed;inset:0;width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;padding:8px;display:flex;flex-direction:column;gap:5px;border-radius:0;overflow:hidden}
+.pendant-viewer-dialog h3{margin:0;min-height:36px;padding:7px 170px 0 0;font-size:15px}
+.pendant-viewer-dialog>.pendant-stop{position:absolute;right:8px;top:8px;margin:0}
+.pendant-viewer-dialog>.dialog-actions{position:absolute;top:8px;right:90px;margin:0}
+.pendant-viewer-dialog>.dialog-actions button{min-height:32px}
+.pendant-viewer-dialog>.dialog-feedback:empty{display:none}
+.pendant-viewer-filename{margin:0!important;font-size:11px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pendant-viewer-dialog .preflight-viewer{flex:1 1 0;min-height:0;width:100%;height:auto;display:block;border:0;background:#171717}
+.pendant-viewer-note{margin:0!important;font-size:10px!important}
+html[data-native-app=android] .pendant-viewer-dialog>.pendant-stop{right:60px}
+html[data-native-app=android] .pendant-viewer-dialog>.dialog-actions{right:142px}
+html[data-native-app=android] .pendant-viewer-dialog h3{padding-right:220px}

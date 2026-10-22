@@ -79,7 +79,7 @@
    m.add('Start job',async()=>{m.dialog.close();busy=true;render();try{await api('start','POST',{stage_id:captured});}catch(error){const failure=ui().modal('Start blocked');failure.insert(el('p',error.message));}finally{busy=false;await refresh();}});
   }catch(error){const m=ui().modal('Start blocked');m.insert(el('p',error.message));}finally{busy=false;render();}
  }
- function viewer(filename){const m=ui().modal('Toolpath viewer');m.insert(el('p',filename));const frame=el('iframe');frame.title='Mainsail G-code toolpath viewer';frame.src='/viewer?filename='+encodeURIComponent('gcodes/'+filename);frame.className='preflight-viewer';m.insert(frame);m.insert(el('p','Visualization is not verification. Enable travel visibility in the viewer for non-extruding CNC paths.'));}
+ function viewer(filename){const m=ui().modal('Toolpath viewer');m.dialog.classList.add('pendant-viewer-dialog');const name=el('p',filename,'pendant-viewer-filename');name.title=filename;m.insert(name);const frame=el('iframe');frame.title='Mainsail G-code toolpath viewer';frame.src='/viewer?filename='+encodeURIComponent('gcodes/'+filename);frame.className='preflight-viewer';m.insert(frame);m.insert(el('p','Visualization is not verification. Enable travel visibility for CNC paths.','pendant-viewer-note'));}
  async function files(){
   const m=ui().modal('Files / stage job'),search=el('input'),list=el('select'),details=el('div',undefined,'cnc-file-details');search.placeholder='Filter files';search.setAttribute('aria-label','Filter G-code files');search.className='file-search';list.size=6;list.className='file-list cnc-file-list';list.setAttribute('aria-label','G-code files');m.insert(search);m.insert(list);m.insert(details);
   let selected='',sequence=0;
