@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const core=fs.readFileSync('src/cnc-pendant-core.js','utf8'),bridge=fs.readFileSync('src/cnc-pendant.js','utf8');
+const state=bridge.slice(bridge.indexOf('  function jobViewState('),bridge.indexOf('  function renderJobView('));
+const context={};vm.createContext(context);vm.runInContext(state+';this.state=jobViewState;',context);
+const ready={webhooks:{state:'ready'},print_stats:{state:'standby'}};
+assert.equal(context.state(ready).mode,'setup');assert.equal(context.state(null).mode,'disconnected');
+assert.equal(context.state({...ready,print_stats:{state:'printing'}}).mode,'running');
+assert.equal(context.state({...ready,virtual_sdcard:{is_active:true},pause_resume:{is_paused:true}}).mode,'paused');
+const safety=core.slice(core.indexOf('  function jogBelowSafe('),core.indexOf('  function refreshJogChoices('));
+vm.runInContext(safety+';this.color=jogBelowSafe;',context);
+const s={gcode_move:{position:[0,0,100],gcode_position:[0,0,10]},toolhead:{axis_minimum:[0,0,0],axis_maximum:[624,1020,109]}};
+assert(context.color('Z',{distance:-10},s,5));assert(!context.color('Z',{distance:-1},s,5));assert(!context.color('X',{distance:-10},s,5));assert(!context.color('Z',{distance:1},s,5));assert(context.color('Z',{limit:'min'},s,5));
+console.log('PASS: running/paused/setup/disconnected states and safe-height jog colors.');

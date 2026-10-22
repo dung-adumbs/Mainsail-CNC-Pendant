@@ -1,0 +1,39 @@
+name: Preview checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python tests/test_recovery.py
+      - run: python tests/test_timers.py
+      - run: python tests/test_job_policy.py
+      - run: python tests/test_manage.py
+      - run: python tests/test_preflight_scan.py
+      - run: python tests/test_preflight_guard.py
+      - run: python tests/test_preflight_service.py
+      - run: for file in src/*.js; do node --check "$file"; done
+      - run: for file in tests/*.cjs; do node "$file"; done
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - run: python3 tools/build_android.py --jdk-dir "$JAVA_HOME" --sdk-dir "$ANDROID_HOME"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CNC-Pendant-Android-preview
+          path: android/build/CNC-Pendant-preview.apk

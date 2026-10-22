@@ -1,0 +1,20 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const core=fs.readFileSync('src/cnc-pendant-core.js','utf8');
+const bridge=fs.readFileSync('src/cnc-pendant.js','utf8');
+(async()=>{
+  const requests=[];
+  const status={webhooks:{state:'ready'},idle_timeout:{state:'Ready'},toolhead:{homed_axes:'xyz'},gcode_move:{speed_factor:1}};
+  const ctx={AbortSignal,fetch:async path=>{requests.push(path);return{ok:true,json:async()=>({result:{status}})};},document:{getElementById:id=>id==='lowrider-endstops'?{}:null,querySelectorAll:()=>[],dispatchEvent:()=>{}},CustomEvent:function(){},updateAndroidStatus:()=>{},updateMotionNotice:()=>{},refreshRunSpeedPreset:()=>{},syncJogReference:()=>{},refreshJogChoices:()=>{},updateAvailability:()=>{},setTimeout:()=>{},controlStatus:null,forcedSending:false,homingPending:false,endstopNames:[]};
+  vm.createContext(ctx);vm.runInContext(core.slice(core.indexOf('  async function refreshEndstops()'),core.indexOf('  async function runCncCommand(')),ctx);
+  await ctx.refreshEndstops();await ctx.refreshEndstops();await ctx.refreshEndstops();
+  assert.equal(requests.length,3);assert(requests.every(p=>p.startsWith('/printer/objects/query?')));assert(!requests.some(p=>p.includes('query_endstops')));
+  let queried=0;const fake=()=>({style:{},append(){},setAttribute(){}});
+  const h={el:fake,api:async path=>{assert.equal(path,'/printer/query_endstops/status');queried++;return{stepper_x:'open'};}};
+  vm.createContext(h);vm.runInContext(bridge.slice(bridge.indexOf('  async function homeEndstops('),bridge.indexOf("  document.addEventListener('click',")),h);
+  const dialog=()=>({dataset:{},querySelector:()=>({after(){}})}),first=dialog();await h.homeEndstops(first);await h.homeEndstops(first);assert.equal(queried,1);await h.homeEndstops(dialog());assert.equal(queried,2);
+  let listener,confirm,clicked=0,closed=0,checks=0;
+  const c={document:{addEventListener:(name,fn)=>listener=fn},idle:async()=>checks++,modal:()=>({dialog:{close:()=>closed++,querySelector:()=>({})},insert(){},add:(label,fn)=>confirm=fn}),el:fake};
+  vm.createContext(c);vm.runInContext(bridge.slice(bridge.indexOf("  document.addEventListener('click',"),bridge.indexOf('  const sections=')),c);
+  const b={dataset:{},click:()=>clicked++};let blocked=0;const event={target:{closest:()=>b},preventDefault:()=>blocked++,stopImmediatePropagation:()=>blocked++};listener(event);assert.equal(clicked,0);assert.equal(blocked,2);await confirm();assert.equal(checks,1);assert.equal(clicked,1);assert.equal(closed,1);listener(event);assert(!b.dataset.pendantConfirmed);
+  console.log('PASS: status polling never queries physical endstops; Home queries once per opening; motor disable requires confirmation and a fresh idle check.');
+})().catch(error=>{console.error(error);process.exit(1);});

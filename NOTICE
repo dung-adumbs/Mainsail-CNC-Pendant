@@ -1,0 +1,18 @@
+Mainsail CNC is an independent early-stage customization by dung-adumbs,
+developed with substantial implementation/documentation assistance from
+ChatGPT / OpenAI Codex. Released under GPL-3.0-or-later.
+
+Mainsail: https://github.com/mainsail-crew/mainsail
+Klipper: https://github.com/Klipper3d/klipper
+Moonraker: https://github.com/Arksine/moonraker
+Mainsail configuration/macros: https://github.com/mainsail-crew/mainsail-config
+
+The example CNC macros adapt Mainsail's PAUSE/RESUME client-variable and saved
+G-code-state conventions. Retain upstream licensing and notices when adapting
+or redistributing upstream code. No compiled Mainsail application or complete
+Klipper distribution is included here. Screenshots show Mainsail with the
+project's customization. This is not endorsed by the upstream projects.
+
+The initial source was extracted from the owner's working LowRider V4 setup.
+Machine identifiers in the DOM and macro names are retained for compatibility.
+Generic configuration and additional-machine validation remain planned work.

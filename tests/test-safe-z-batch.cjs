@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const s=fs.readFileSync('src/cnc-pendant-core.js','utf8'),b=fs.readFileSync('src/cnc-pendant.js','utf8');
+const c={jogSpeed:100,belowZ5Cap:30,safeJogZ:25,forcedEnabled:()=>false};vm.createContext(c);
+vm.runInContext(s.slice(s.indexOf('  function jogCommand('),s.indexOf('  function clearanceReason(')),c);
+const status={toolhead:{homed_axes:'xyz'},gcode_move:{gcode_position:[100,100,19],speed_factor:2}};
+const script=c.jogCommand('Z',40,status);assert.equal(script,'_CLIENT_LINEAR_MOVE Z=25 F=225 ABSOLUTE=1\n_CLIENT_LINEAR_MOVE Z=40 F=750 ABSOLUTE=1');
+assert.equal(c.jogCommand('Z',25,status).split('\n').length,1);assert(c.jogCommand('Z',25,status).includes('F=225'));
+assert(c.jogCommand('X',110,status).includes('F=1800'));assert(c.needsClearanceConfirm('X',{target:110,distance:10},status));assert(!c.needsClearanceConfirm('Z',{target:40,distance:21},status));
+c.jogSpeed=10;assert(c.jogCommand('Z',40,status).split('\n').every(line=>line.includes('F=75')));
+vm.runInContext(s.slice(s.indexOf('  function runSpeedPreset('),s.indexOf('  function refreshRunSpeedPreset(')),c);assert.equal(c.runSpeedPreset(60),50);assert.equal(c.runSpeedPreset(61),100);assert.equal(c.runSpeedPreset(100),100);
+vm.runInContext(b.slice(b.indexOf('  function stepperTimer('),b.indexOf('  function updateStepperButton(')),c);
+const state={webhooks:{state:'ready'},stepper_enable:{steppers:{x:true}},toolhead:{estimated_print_time:100},print_stats:{state:'standby'},'gcode_macro _LED_IDLE_STATE':{steady:1,idle_since:0,timeout:1800,disable_after:1800}};
+assert.equal(c.stepperTimer(state).seconds,3500);state['gcode_macro _LED_IDLE_STATE'].automatic=1;state['gcode_macro _LED_IDLE_STATE'].warning_since=50;assert.equal(c.stepperTimer(state).seconds,1750);state.pause_resume={is_paused:true};assert.equal(c.stepperTimer(state).label,'Auto-disable held');state.pause_resume.is_paused=false;state['gcode_macro _LED_IDLE_STATE'].automatic=0;state['gcode_macro _LED_IDLE_STATE'].snooze_until=200;assert.equal(c.stepperTimer(state).seconds,1900);
+console.log('PASS: split Safe Z speeds, 60/61 preset boundary, XY confirmation and accurate idle/grace/snooze countdowns.');
