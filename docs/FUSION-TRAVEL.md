@@ -59,3 +59,9 @@ Level XY moves that Fusion explicitly classifies as `MOVEMENT_LINK_DIRECT` can u
 
 The post captures Fusion's `onMovement` callback and emits `CNC_CAM_MOVEMENT` diagnostic comments when the category changes. This supplies movement intent to the rapid/direct-link classification and permits diagnosis of links that remain at cutting feed. The v0.7 reference file still contained 38 level Z6 bore-transfer lines marked CUT; v0.8 requires a fresh actual Fusion post to confirm those categories. No existing CUT lines are automatically reclassified.
 
+# Stock-relative clearance (post 0.9 — current policy)
+
+Version 0.9 supersedes the CAM-category-only eligibility rules below. The clearance property is now an **offset above Fusion stock top**, not above work zero. Fusion must provide `stock-upper-z`; missing stock stops posting. File and operation headers show stock bounds when available, stock-top work Z, offset and calculated plane. An optional Material name property supplies a descriptive header note; physical-material assignments are not assumed to be exported.
+
+All level XY moves at or above the declared plane use travel feed, including moves Fusion labels CUT. Set the offset above every fastener/clamp crossed by travel. This is a user-declared clearance rule, not collision detection. Descending, ramping and below-plane moves keep their feeds. A new actual Fusion post must be inspected before running; old CUT markers are not retroactively changed. Pendant Safe Z remains a separate manual-jog setting.
+

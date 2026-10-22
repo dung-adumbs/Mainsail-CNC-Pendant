@@ -2,13 +2,13 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync('post/Mainsail-CNC-Pendant.cps','utf8');
 function context(){
  const output=[],rates={startSpeedFactor:100,travelFeed:3000,zTravelFeed:180,fastClearanceZ:5,maxSegment:10};
- const c={CAPABILITY_MILLING:1,MM:1,setCodePage(){},spatial:x=>x,createFormat:o=>({format:x=>Number(x).toFixed(o.decimals),areDifferent:(a,b)=>Math.abs(a-b)>.0005}),getProperty:k=>rates[k],writeWords:w=>output.push(w.join(' ')),writeln:s=>output.push(s),error:m=>{throw Error(m)},MOVEMENT_RAPID:0,movement:1};
+ const c={CAPABILITY_MILLING:1,MM:1,setCodePage(){},spatial:x=>x,createFormat:o=>({format:x=>Number(x).toFixed(o.decimals),areDifferent:(a,b)=>Math.abs(a-b)>.0005}),getProperty:k=>k==='materialLabel'?'MDF':rates[k],hasGlobalParameter:k=>k==='stock-upper-z',getGlobalParameter:()=>0,writeWords:w=>output.push(w.join(' ')),writeln:s=>output.push(s),error:m=>{throw Error(m)},MOVEMENT_RAPID:0,movement:1};
  vm.createContext(c);vm.runInContext(source,c);return {c,output};
 }
 {
- const {c,output}=context();c.emittedPosition={X:0,Y:0,Z:10};c.onLinear(20,0,10,250);
+ const {c,output}=context();c.emittedPosition={X:0,Y:0,Z:2};c.onLinear(20,0,2,250);
  assert(output.filter(x=>x.startsWith('; CNC_MOVE:')).every(x=>x==='; CNC_MOVE: CUT'));
- assert(output.filter(x=>x.startsWith('G1')).every(x=>x.endsWith('F250.0')),'High cutting move must keep its feed');
+ assert(output.filter(x=>x.startsWith('G1')).every(x=>x.endsWith('F250.0')),'Below-clearance cutting move must keep its feed');
 }
 {
  const {c,output}=context();c.emittedPosition={X:0,Y:0,Z:10};c.movement=0;c.onLinear(20,0,10,250);
@@ -53,5 +53,10 @@ console.log('PASS: CAM intent, explicit feeds, segmented markers, retract/XY/low
 {
  const {c,output}=context();c.MOVEMENT_LINK_DIRECT=9;c.emittedPosition={X:0,Y:0,Z:6};c.onMovement(9);c.onLinear(20,0,6,1000);
  assert(output.includes('; CNC_MOVE: TRAVEL_XY'));assert(output.includes('; CNC_CAM_MOVEMENT: 9 LINK_DIRECT'));
- c.onMovement(1);c.onLinear(30,0,6,1000);assert.equal(output.at(-1).split(' ').at(-1),'F1000.0');
+ c.onMovement(1);c.onLinear(30,0,6,1000);assert.equal(output.at(-1).split(' ').at(-1),'F3000.0');
 }
+
+{const {c}=context();c.getGlobalParameter=()=>6;assert.equal(c.travelPlane(),11);}
+
+{const {c,output}=context();c.emittedPosition={X:0,Y:0,Z:6};c.onLinear(20,0,6,1000);assert(output.includes('; CNC_MOVE: TRAVEL_XY'));}
+{const {c,output}=context();c.getGlobalParameter=()=>6;c.emittedPosition={X:0,Y:0,Z:6};c.onLinear(20,0,6,1000);assert(!output.includes('; CNC_MOVE: TRAVEL_XY'));}

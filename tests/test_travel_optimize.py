@@ -49,6 +49,10 @@ class Travel(unittest.TestCase):
   program=PROGRAM.replace('; CNC_MOVE: RETRACT_Z','; CNC_PAUSE: SAME_TOOL_RETURN\nPAUSE_BASE\n; CNC_MOVE: RETRACT_Z')
   result,report=self.run_program(program);self.assertEqual(report['changed_moves'],3)
   self.assertIn('G1 Z10 F180',result.decode())
+ def test_stock_relative_negative_plane(self):
+  header=HEADER.replace('CNC_TRAVEL_CLEARANCE_MM: 5','CNC_TRAVEL_CLEARANCE_MM: -5\n; CNC_STOCK_TOP_WORK_Z_MM: -10\n; CNC_TRAVEL_OFFSET_MM: 5')
+  self.assertTrue(travel.inspect_header(header)['compatible'])
+  self.assertFalse(travel.inspect_header(header.replace('OFFSET_MM: 5','OFFSET_MM: 6'))['compatible'])
  def test_reoptimization_rejected(self):
   result,_=self.run_program()
   with self.assertRaises(ValueError):travel.optimize_bytes(result,3000,180)

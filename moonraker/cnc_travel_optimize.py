@@ -15,11 +15,16 @@ MAX_BYTES=64*1024*1024
 def inspect_header(text):
     lines=text.splitlines()[:100]
     compatible=HEADER in lines
-    clearance=None
+    clearance=None;stock_top=None;offset=None
     for line in lines:
         m=re.fullmatch(r'; CNC_TRAVEL_CLEARANCE_MM: ('+NUMBER+r')',line)
         if m:clearance=float(m[1])
-    return {'compatible':compatible and clearance is not None and math.isfinite(clearance) and clearance>=1,
+        m=re.fullmatch(r'; CNC_STOCK_TOP_WORK_Z_MM: ('+NUMBER+r')',line)
+        if m:stock_top=float(m[1])
+        m=re.fullmatch(r'; CNC_TRAVEL_OFFSET_MM: ('+NUMBER+r')',line)
+        if m:offset=float(m[1])
+    valid_plane=clearance is not None and math.isfinite(clearance) and (clearance>=1 if stock_top is None and offset is None else stock_top is not None and offset is not None and math.isfinite(stock_top) and math.isfinite(offset) and offset>=1 and abs(clearance-stock_top-offset)<0.002)
+    return {'compatible':compatible and valid_plane,
             'version':1 if compatible else None,'clearance_mm':clearance,
             'already_optimized':any(line.startswith('; CNC_OPTIMIZED:') for line in lines)}
 
