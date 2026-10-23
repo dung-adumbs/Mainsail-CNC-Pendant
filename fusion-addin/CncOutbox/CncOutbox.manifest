@@ -1,0 +1,10 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "addin",
+  "id": "org.mainsailcnc.outbox",
+  "author": "Mainsail CNC Pendant contributors / OpenAI Codex",
+  "description": "Post selected single-tool CNC operations with machine identification and unique Outbox filenames.",
+  "version": "0.1.0",
+  "runOnStartup": true,
+  "supportedOS": "windows"
+}

@@ -73,3 +73,7 @@ Pure vertical linear moves now split at stock top on ascent, or stock top plus c
 
 `CNC_FUSION_SETUP` records Fusion's `job-description` setup name when provided, both in the file header and at operation entry. Missing names are explicitly reported as Not supplied. Setup names help suggest file groups but do not establish machining order or prove matching work origins. Users must review group membership and order; the pendant bundle builder is not yet implemented.
 
+# Machine identity (post 0.12)
+
+The header records machineConfiguration vendor, model and description. Missing machine assignment is reported explicitly. Assign the intended machine in Fusion Setup before using the CNC Outbox add-in. Metadata identifies the Fusion configuration; it is not proof of the physical controller or physical setup.
+

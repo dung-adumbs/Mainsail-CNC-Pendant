@@ -18,6 +18,8 @@ A dedicated CNC control page alongside the standard Mainsail dashboard. Set up w
 
 **Automatic PC uploads:** the optional [Windows CNC Outbox helper](pc-outbox/README.md) sends completed posts to a Pi Inbox, verifies checksums, and archives the PC originals. It starts at Windows sign-in, retries offline transfers, and only notifies when queued posts cannot reach the Pi.
 
+**Fusion posting command (integration preview):** [CNC Outbox add-in](fusion-addin/README.md) identifies an assigned machine, reviews selected one-tool operations, and posts with unique filenames. Interactive Fusion verification is still pending.
+
 ## Watch it in use
 
 [![Watch the Mainsail CNC Pendant Android demonstration](https://img.youtube.com/vi/ZflacJoVMw0/hqdefault.jpg)](https://www.youtube.com/watch?v=ZflacJoVMw0)
