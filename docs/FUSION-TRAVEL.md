@@ -69,3 +69,7 @@ All level XY moves at or above the declared plane use travel feed, including mov
 
 Pure vertical linear moves now split at stock top on ascent, or stock top plus clearance offset on descent. Above stock top an ascending segment uses Z travel feed; a descending segment uses Z travel feed only down to the clearance plane. Remaining portions retain their original feed. Combined XY/Z, ramps and helices are not eligible for this rule. `TRAVEL_Z` markers let the optimizer change the separate Z travel feed while validating the applicable boundary against stock metadata. Unknown initial positioning is not accelerated by this rule. Destinations and geometric paths are unchanged; extra collinear points identify feed changes. Repost with 0.10 and update the Pi optimizer before optimizing these markers.
 
+# Setup identity (post 0.11)
+
+`CNC_FUSION_SETUP` records Fusion's `job-description` setup name when provided, both in the file header and at operation entry. Missing names are explicitly reported as Not supplied. Setup names help suggest file groups but do not establish machining order or prove matching work origins. Users must review group membership and order; the pendant bundle builder is not yet implemented.
+

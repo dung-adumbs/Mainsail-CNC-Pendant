@@ -69,3 +69,5 @@ console.log('PASS: CAM intent, explicit feeds, segmented markers, retract/XY/low
  const {c,output}=context();c.getGlobalParameter=()=>25;c.emittedPosition={X:2,Y:3,Z:40};c.onLinear(2,3,20,700);
  const moves=output.filter(x=>x.startsWith('G1'));assert(moves.some(x=>x.includes('Z30.000 F180.0')));assert.equal(moves.at(-1),'G1 Z20.000 F700.0');assert(moves.filter(x=>Number(x.match(/Z([\d.]+)/)[1])>=30).every(x=>x.endsWith('F180.0')));
 }
+
+{const {c}=context();c.onParameter('job-description','P38 FASTEN ONLY');assert.equal(c.setupName(),'P38 FASTEN ONLY');}
