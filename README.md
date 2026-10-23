@@ -16,6 +16,8 @@ A dedicated CNC control page alongside the standard Mainsail dashboard. Set up w
 
 **Posting from Fusion?** The [marked Klipper Fusion post and optional travel optimizer](docs/FUSION-TRAVEL.md) let you preview travel-feed changes, create a separate copy, then stage and verify it before Start.
 
+**Automatic PC uploads:** the optional [Windows CNC Outbox helper](pc-outbox/README.md) sends completed posts to a Pi Inbox, verifies checksums, and archives the PC originals. It starts at Windows sign-in, retries offline transfers, and only notifies when queued posts cannot reach the Pi.
+
 ## Watch it in use
 
 [![Watch the Mainsail CNC Pendant Android demonstration](https://img.youtube.com/vi/ZflacJoVMw0/hqdefault.jpg)](https://www.youtube.com/watch?v=ZflacJoVMw0)
