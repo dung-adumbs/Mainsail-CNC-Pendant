@@ -235,3 +235,59 @@ def evaluate_bounds(bounds,offset,minimum,maximum):
         if low[i]<minimum[i]-1e-5:violations.append({'axis':axis,'side':'minimum','overflow_mm':minimum[i]-low[i],'message':f'{axis} exceeds lower travel by {minimum[i]-low[i]:.3f} mm'})
         if high[i]>maximum[i]+1e-5:violations.append({'axis':axis,'side':'maximum','overflow_mm':high[i]-maximum[i],'message':f'{axis} exceeds upper travel by {high[i]-maximum[i]:.3f} mm'})
     return {'fits':not violations,'work_min':bounds['min'],'work_max':bounds['max'],'machine_min':low,'machine_max':high,'violations':violations,'section':bounds['section'],'label':bounds['label']}
+
+
+def keepout_interferences(bounds,offset,blocks,return_points=()):
+    """Conservative section-envelope check in machine coordinates, including margin.
+
+    An envelope overlap is potential interference, not proof the path hits a fixture.
+    Rejecting it avoids certifying a clear path from volume information alone.
+    """
+    if not isinstance(blocks,list):raise ValueError('Keep-out settings are not a list')
+    boxes=[]
+    if bounds:boxes.append(([bounds['min'][i]+offset[i] for i in range(3)],[bounds['max'][i]+offset[i] for i in range(3)],'tool-section envelope'))
+    for a,b in zip(return_points,return_points[1:]):boxes.append(([min(a[i],b[i]) for i in range(3)],[max(a[i],b[i]) for i in range(3)],'Resume return path'))
+    result=[]
+    for b in blocks:
+        if not isinstance(b,dict):raise ValueError('Invalid keep-out block')
+        if not b.get('enabled'):continue
+        keys=['xmin','xmax','ymin','ymax','safeZ','margin']
+        if any(isinstance(b.get(k),bool) or not isinstance(b.get(k),(int,float)) or not math.isfinite(b[k]) for k in keys) or b['xmin']>=b['xmax'] or b['ymin']>=b['ymax'] or b['margin']<0:raise ValueError('Invalid enabled keep-out block')
+        low=[b['xmin']-b['margin'],b['ymin']-b['margin'],-math.inf];high=[b['xmax']+b['margin'],b['ymax']+b['margin'],b['safeZ']]
+        for lo,hi,scope in boxes:
+            if all(lo[i]<=high[i] and hi[i]>=low[i] for i in range(3)):
+                name=str(b.get('name') or 'Protected area')[:100]
+                result.append({'name':name,'scope':scope,'message':f'Potential keep-out interference: {name}; {scope} overlaps protected machine X {low[0]:g}..{high[0]:g}, Y {low[1]:g}..{high[1]:g}, at/below Z {high[2]:g} mm (margin included). Review the fixture and path.'})
+                break
+    return result
+
+
+def reuse_speed_only_analysis(source,target,model):
+    """Reuse immutable geometry only for byte-position-preserving M220 edits."""
+    from dataclasses import replace
+    source=Path(source);target=Path(target);before=source.stat();after_before=target.stat()
+    old=source.read_bytes();new=target.read_bytes()
+    if hashlib.sha256(old).hexdigest()!=model.sha256 or len(old)!=len(new):return None
+    if b'; CNC_ROLLUP_VERSION: 1' not in old[:262144]:return None
+    left=old.splitlines(keepends=True);right=new.splitlines(keepends=True)
+    if len(left)!=len(right):return None
+    count=0
+    for a,b in zip(left,right):
+        if len(a)!=len(b):return None
+        original=a.rstrip(b'\r\n');changed=b.rstrip(b'\r\n')
+        if a[len(original):]!=b[len(changed):]:return None
+        match=re.fullmatch(rb'M220[ \t]+S([\d.]+)[ \t]*',original)
+        if match:
+            count+=1
+            if count==1:
+                rate=re.fullmatch(rb'M220[ \t]+S([\d.]+)[ \t]*',changed)
+                if not rate or not 1<=float(rate[1])<=300:return None
+            elif float(match[1])!=100 or changed!=b'; reset'.ljust(len(original),b' '):return None
+        elif a!=b:return None
+    if not count:return None
+    final=source.stat();end=target.stat()
+    if (before.st_size,before.st_mtime_ns,before.st_ino)!=(final.st_size,final.st_mtime_ns,final.st_ino):return None
+    if (after_before.st_size,after_before.st_mtime_ns,after_before.st_ino)!=(end.st_size,end.st_mtime_ns,end.st_ino):return None
+    digest,body=fingerprints(target)
+    if digest!=hashlib.sha256(new).hexdigest():return None
+    return replace(model,filename=target.name,sha256=digest,body_sha256=body,size=end.st_size,modified_ns=end.st_mtime_ns,seconds=0.)

@@ -1,0 +1,26 @@
+/* Physical-tool acknowledgment for one prepared revision; never edits Fusion. */
+(() => {
+ 'use strict';
+ const canonical=x=>Array.isArray(x)?x.map(canonical):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])])):x;
+ const identity=t=>JSON.stringify(canonical({number:t.number,description:t.description,type:t.type,geometry:t.geometry||{}}));
+ const attention=/check\s+before\s+use|unverified|pending|provisional|draft|verify\s+before|unknown|placeholder|needs?\s+(?:checking|attention|review)/i;
+ function missing(t){const g=t.geometry||{},issues=[];for(const [key,label] of [['DC','cutting diameter'],['SFDM','shank diameter'],['LCF','flute length'],['OAL','overall length'],['NOF','flute count']])if(!Number.isFinite(g[key])||g[key]<=0)issues.push(label);if(!t.type)issues.push('tool type');if(Number.isFinite(g.OAL)&&Number.isFinite(g.LCF)&&g.OAL<g.LCF)issues.push('overall length shorter than flute length');if(/ball/i.test(t.type||'')&&(!Number.isFinite(g.RE)||g.RE<=0||g.RE>g.DC/2+.001))issues.push('ball radius');if(/taper/i.test(t.type||'')&&(!Number.isFinite(g.TA)||g.TA<=0||g.TA>=90))issues.push('taper angle');return issues;}
+ function collect(stages){const map=new Map();for(const stage of stages){const known=new Set();const add=tool=>{const key=identity(tool);if(!map.has(key))map.set(key,{key,tool,sources:[],flagged:attention.test(tool.description||''),missing:missing(tool)});const row=map.get(key);row.sources.push({path:stage.path,sha256:stage.sha256});};for(const op of stage.fusionOperations||[]){if(!op.tool)continue;known.add(String(op.tool.number));add(op.tool);}for(const label of stage.tools||[]){const match=label.match(/^T(\d+)\s*[·:]\s*(.*)$/);if(match&&!known.has(match[1])){known.add(match[1]);add({number:Number(match[1]),description:match[2],type:'',geometry:{}});}}}return [...map.values()].map(r=>({...r,sources:[...new Map(r.sources.map(s=>[s.path,s])).values()],required:r.flagged||r.missing.length>0}));}
+ function specs(tool,unit='mm'){const factor=unit==='in'?25.4:unit==='cm'?10:1,g=tool.geometry||{},n=(v,suffix=' '+unit)=>Number.isFinite(v)?(suffix===' '+unit?Number((v/factor).toFixed(4)):v)+suffix:'Unknown';return [['Tool',String(tool.number??'Unknown')+' · '+(tool.description||'No description')],['Type',tool.type||'Unknown'],['Cutting diameter',n(g.DC)],['Shank diameter',n(g.SFDM)],['Flute length',n(g.LCF)],['Overall length',n(g.OAL)],['Flutes',n(g.NOF,'')],['Corner / ball radius',n(g.RE)],['Side / taper angle',n(g.TA,'°')]];}
+ const model={collect,identity,missing,specs};if(typeof module!=='undefined'&&module.exports){module.exports=model;return;}
+ async function review(stages,host=null){
+  const rows=collect(stages),required=rows.filter(r=>r.required),confirmed=[];
+  for(const [index,row] of required.entries())await new Promise((resolve,reject)=>{
+   const ui=window.PendantUI,m=host?ui.inlineStep(host,'Confirm physical tool'):ui.modal('Confirm physical tool'),dialog=m.dialog;dialog.classList.add('cnc-tool-review');let accepted=false;
+   const cancel=()=>{if(host)m.finish();else dialog.close();reject(Object.assign(Error('Tool review cancelled. No prepared file was generated.'),{cancelled:true}));};if(host)m.add('Back',cancel);else dialog.querySelector('.dialog-actions button').textContent='Back';m.insert(ui.el('p','Tool review '+(index+1)+' of '+required.length+'. Stored Fusion dimensions; measure/check the actual fitted tool.'));
+   const rpms=[...new Set(stages.flatMap(s=>s.fusionOperations||[]).filter(op=>identity(op.tool||{})===row.key&&Number.isFinite(op.rpm)).map(op=>op.rpm))];
+   const table=ui.el('div',undefined,'cnc-tool-specs');for(const [label,value] of [...specs(row.tool,window.CncSettings?.get('units')||'mm'),['Requested RPM',rpms.length?rpms.join(', '):'Unavailable; check Fusion']]){const line=ui.el('div');line.append(ui.el('strong',label),ui.el('span',value));table.append(line);}m.insert(table);
+   m.insert(ui.el('p',row.missing.length?'Correct/repost before proceeding. Missing or invalid: '+row.missing.join(', '):'This definition is marked for attention. Confirmation applies only to this prepared job, not the Fusion library.'));
+   const label=ui.el('label'),check=ui.el('input');check.type='checkbox';check.disabled=!!row.missing.length;label.append(check,document.createTextNode(' I checked this physical tool against these specifications and confirmed it is suitable for this job.'));m.insert(label);
+   const next=m.add('Confirm tool & continue',()=>{if(row.missing.length||!check.checked)throw Error('Confirm the complete physical-tool specifications first.');accepted=true;confirmed.push({identity:row.key,tool:row.tool,sources:row.sources,confirmed_at:new Date().toISOString()});if(host)m.finish();else dialog.close();resolve();});next.disabled=true;check.addEventListener('change',()=>next.disabled=row.missing.length>0||!check.checked);
+   const closed=()=>{if(!accepted)reject(Object.assign(Error('Tool review cancelled. No prepared file was generated.'),{cancelled:true}));};dialog.addEventListener('close',closed,{once:true});
+  });
+  return {schema:1,source_hashes:stages.map(s=>({path:s.path,sha256:s.sha256})),tools:confirmed,reviewed_at:new Date().toISOString(),scope:'this prepared revision only; no Fusion library changes'};
+ }
+ window.CncToolReview={...model,review};
+})();

@@ -11,9 +11,9 @@ The current preview includes metadata, the Mainsail viewer, background G-code sc
 - More accurate job-time estimates; estimated remaining time currently extrapolates file progress.
 
 Current source is a working reference snapshot, not a completed generic CNC distribution.
-# Current file/project workflow requests (not implemented)
+# File/project workflow
 
-- Review recent Inbox files using setup/tool/operation metadata; user selects group membership and reorders stages before saving a named project.
+- Deployed review preview: automatic document/date groups, compact stage selection/reorder, single-tool confirmation and named shared manifests with file hashes. See PROJECTS.md. Strict combined G-code, speed preparation, logical project collections and legacy checksum-verified browse/restore are implemented. Stage completion tracking and reviewed unused-file archiving remain future work.
 - Offer Archive unused Inbox files after saving a project, showing the exact files before moving anything. Never silently discard unselected files.
 - After confirmed successful job/bundle completion, offer Archive completed job. Move the project manifest and its files out of the active list; preserve hashes, tool order, originals/optimized provenance and dates. Provide archive browsing and Restore for rerun. Restoring does not restore machine homing or tool/work zeros and requires fresh verification. No completion prompt for a paused, failed or cancelled job; never move a file still in use.
 

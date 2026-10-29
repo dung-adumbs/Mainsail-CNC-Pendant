@@ -1,9 +1,10 @@
 """Moonraker-owned CNC staging and preflight gate. GPL-3.0-or-later."""
 from __future__ import annotations
-import asyncio, datetime, hashlib, json, math, pathlib, uuid, logging
+import asyncio, datetime, hashlib, json, math, pathlib, uuid, logging, os
 from ..common import RequestType
-from .cnc_gcode_scan import scan_file, metadata_from_header, fingerprints, evaluate_bounds, thumbnail_data_url
+from .cnc_gcode_scan import scan_file, reuse_speed_only_analysis, metadata_from_header, fingerprints, evaluate_bounds, thumbnail_data_url, keepout_interferences
 from .cnc_travel_optimize import inspect_header, optimize_bytes, MAX_BYTES
+from .cnc_health import CNCHealth
 
 class CNCPreflight:
     def __init__(self,config):
@@ -13,8 +14,51 @@ class CNCPreflight:
         self.profile_path=pathlib.Path(config.get('profile_path','~/printer_data/config/cnc_preflight_profile.json')).expanduser()
         self.job={'state':'empty','message':'Select and stage a file.'};self.model=None;self.generation=0;self.scan_lock=asyncio.Lock();self.action_lock=asyncio.Lock();self.bounds_cache={};self.initial_machine=None;self.operation={'state':'idle'};self.operation_task=None
         self.optimization={'state':'idle'};self.optimization_task=None;self.thumbnail_task=None;self.thumbnail_cancel=False;self.thumbnail_cache={}
-        for name,method in [('inspect',RequestType.GET),('stage',RequestType.POST),('status',RequestType.GET),('verify',RequestType.POST),('start',RequestType.POST),('resume',RequestType.POST),('clear',RequestType.POST),('optimize',RequestType.POST),('optimization',RequestType.GET),('thumbnail',RequestType.GET)]:
+        self.health=CNCHealth(self.server,self.api,config)
+        for name,method in [('inspect',RequestType.GET),('stage',RequestType.POST),('status',RequestType.GET),('verify',RequestType.POST),('start',RequestType.POST),('resume',RequestType.POST),('clear',RequestType.POST),('optimize',RequestType.POST),('optimization',RequestType.GET),('thumbnail',RequestType.GET),('archive_restore',RequestType.POST)]:
             self.server.register_endpoint('/machine/cnc_preflight/'+name,method,getattr(self,'_'+name))
+    def _archive_entry(self,archive_id,filename,expected):
+        # The client selects an entry; it never supplies an absolute disk path.
+        if not archive_id or len(archive_id)>80 or any(c not in '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-' for c in archive_id):
+            raise self.server.error('Invalid archive ID.',400)
+        relative=pathlib.PurePosixPath(filename)
+        if not filename or relative.is_absolute() or '..' in relative.parts or any(c in filename for c in '\r\n\x00\\'):
+            raise self.server.error('Invalid archived filename.',400)
+        base=self.root.parent/'cnc_archives';folder=base/archive_id
+        if base.is_symlink() or folder.is_symlink():raise self.server.error('Archive links are not supported.',400)
+        manifest=json.loads((folder/'manifest.json').read_text())
+        matches=[row for row in manifest.get('files',[]) if row.get('relative_path')==filename and row.get('sha256')==expected]
+        if len(matches)!=1:raise self.server.error('Archive entry changed; reopen the archive.',409)
+        row=matches[0]
+        # The manifest retains the exact checksum-verified storage path.
+        stored=pathlib.Path(row.get('archive_path',''))
+        if not stored.is_absolute() or not stored.is_relative_to(folder):raise self.server.error('Invalid archive manifest path.',400)
+        source=stored
+        if not source.resolve().is_relative_to(folder.resolve()) or any(p.is_symlink() for p in [source,*source.parents] if p!=base.parent):
+            raise self.server.error('Archive links are not supported.',400)
+        if not source.is_file() or source.stat().st_size!=row.get('size') or source.stat().st_size>64*1024*1024:
+            raise self.server.error('Archived file size differs or exceeds the restore limit.',409)
+        if len(expected)!=64 or any(c not in '0123456789abcdef' for c in expected):raise self.server.error('Invalid checksum.',400)
+        return source,row
+    async def _archive_restore(self,request):
+        async with self.action_lock:
+            self._optimization_idle(await self._snapshot())
+            filename=request.get_str('filename');source,row=self._archive_entry(request.get_str('archive_id'),filename,request.get_str('sha256'))
+            data=await asyncio.to_thread(source.read_bytes)
+            if hashlib.sha256(data).hexdigest()!=row['sha256']:raise self.server.error('Archive checksum differs; nothing restored.',409)
+            if getattr(self,'job',{}).get('filename')==filename:raise self.server.error('Clear this staged file before restoring.',409)
+            dest=self.root/filename
+            if not dest.resolve().is_relative_to(self.root) or any(p.is_symlink() for p in [dest,*dest.parents] if p!=self.root.parent):
+                raise self.server.error('Restore links are not supported.',400)
+            self._optimization_idle(await self._snapshot())
+            dest.parent.mkdir(parents=True,exist_ok=True)
+            try:
+                # Exclusive create refuses overwrites, including a racing upload.
+                with dest.open('xb') as out:out.write(data);out.flush();os.fsync(out.fileno())
+            except FileExistsError:raise self.server.error('A file already exists at the original path; nothing overwritten.',409)
+            if hashlib.sha256(dest.read_bytes()).hexdigest()!=row['sha256']:
+                raise self.server.error('Restored checksum differs. Preserve and inspect the restored copy.',500)
+            return {'filename':filename,'sha256':row['sha256'],'size':len(data),'archive_retained':True,'message':'Restored copy verified. Review and stage it before any Start.'}
     def _path(self,filename):
         if not filename or any(c in filename for c in '\r\n\x00\"\'\\{}') or len(filename)>512:raise self.server.error('Invalid filename',400)
         path=(self.root/filename).resolve()
@@ -146,10 +190,16 @@ class CNCPreflight:
             filename=request.get_str('filename');path=self._path(filename);s=await self._snapshot()
             if s.get('virtual_sdcard',{}).get('is_active'):raise self.server.error('Pause or stop the running file before staging',409)
             if s.get('pause_resume',{}).get('is_paused') and s.get('print_stats',{}).get('filename')!=filename:raise self.server.error('While paused, stage only the active file',409)
+            reused=None
+            if self.model is not None and request.get_str('reuse_stage_id','')==self.job.get('id') and filename!=self.job.get('filename') and pathlib.PurePosixPath(filename).parent.as_posix()=='cnc_runs':
+                reused=await asyncio.to_thread(reuse_speed_only_analysis,self._path(self.job['filename']),path,self.model)
             self.thumbnail_cancel=True;self.operation={'state':'idle'}
             self.generation+=1;generation=self.generation;self.model=None;self.bounds_cache={};self.initial_machine=s.get('gcode_move',{}).get('position',[0,0,0])[:3]
             self.job={'id':uuid.uuid4().hex,'filename':filename,'state':'scanning','progress':0,'lines':0,'message':'Scanning G-code in the background…','metadata':metadata_from_header(path)}
-            asyncio.create_task(self._scan(path,generation));return dict(self.job)
+            if reused is not None:
+                self.model=reused;self.job.update(state='analyzed',progress=1,report=reused.report(),message='Reused verified motion analysis; checking current setup.')
+            else:asyncio.create_task(self._scan(path,generation))
+            return dict(self.job)
     async def _scan(self,path,generation):
         async with self.scan_lock:
             if generation!=self.generation:return
@@ -165,6 +215,7 @@ class CNCPreflight:
                 if generation==self.generation:self.job.update(state='error',message=str(error))
     async def _status(self,request):
         result=dict(self.job)
+        result['capabilities']={'resume_run_percent':True}
         result['operation']=dict(getattr(self,'operation',{'state':'idle'}))
         try:
             s=await self._snapshot(config=self.model is not None);paused=s.get('pause_resume',{}).get('is_paused',False)
@@ -181,6 +232,10 @@ class CNCPreflight:
         fit=evaluate_bounds({**box,'section':0,'label':'Metadata'},offset,tool['axis_minimum'],tool['axis_maximum'])
         return {**fit,'available':True,'message':'PRELIMINARY: header bounds exceed current travel.' if not fit['fits'] else 'PRELIMINARY: header bounds fit; full scan still required.'}
     async def _check(self,s,paused=False,hash_check=False):
+        health=getattr(self,'health',None)
+        if health:
+            blocked=await health.blocked()
+            if blocked:return {'approved':False,'reason':blocked}
         model=self.model;generation=self.generation;job_id=self.job.get('id');filename=self.job.get('filename')
         if model is None:return {'approved':False,'reason':'Analysis is not complete.'}
         if model.issues:return {'approved':False,'reason':'Cannot fully verify: '+model.issues[0]['message'],'issues':model.issues}
@@ -216,9 +271,14 @@ class CNCPreflight:
             for i,axis in enumerate('XYZ'):
                 short=max(tool['axis_minimum'][i]-point[i],point[i]-tool['axis_maximum'][i],0.)
                 if short>1e-5:return_violations.append({'axis':axis,'overflow_mm':short,'message':f'Resume return path exceeds {axis} travel by {short:.3f} mm'})
-        approved=fit['fits'] and not return_violations
+        try:
+            blocks=await self.server.lookup_component('database').get_item('lowrider','keepout',[])
+            keepout_violations=keepout_interferences(bounds,offset,blocks,return_points)
+        except Exception as error:
+            return {'approved':False,'reason':'Cannot verify keep-out settings: '+str(error)}
+        approved=fit['fits'] and not return_violations and not keepout_violations
         if generation!=self.generation or model is not self.model:return {'approved':False,'reason':'The staged file changed during verification. Try again.'}
-        return {**fit,'approved':approved,'reason':'Within machine travel limits for this tool section and return path.' if approved else 'Out of bounds — adjust the setup/tool zero and verify again.','return_violations':return_violations,'sha256':model.sha256,'file_position':position,'scope':'Next tool section; later sections require their actual tool zeros. This is a travel check, not fixture/cutter collision certification.'}
+        return {**fit,'approved':approved,'reason':'Within machine travel limits for this tool section and return path.' if approved else 'Out of bounds — adjust the setup/tool zero and verify again.','return_violations':return_violations,'keepout_violations':keepout_violations,'keepout_sha256':hashlib.sha256(json.dumps(blocks,sort_keys=True).encode()).hexdigest(),'sha256':model.sha256,'file_position':position,'scope':'Next tool section; later sections require their actual tool zeros. This is a travel check, not fixture/cutter collision certification.'}
     async def _verify(self,request):
         if not self.model:return {'approved':False,'reason':'Stage the file and wait for analysis.'}
         s=await self._snapshot(True);return await self._check(s,s.get('pause_resume',{}).get('is_paused',False),True)
@@ -226,6 +286,13 @@ class CNCPreflight:
         async with self.action_lock:
             if getattr(self,'operation',{}).get('state')=='returning':raise self.server.error('Resume return is already in progress. Do not send another Resume.',409)
             if request.get_str('stage_id')!=self.job.get('id'):raise self.server.error('The staged file changed. Review the new selection.',409)
+            run_percent=None
+            if resume:
+                value=request.get_str('run_percent',None)
+                if value is not None:
+                    try:run_percent=float(value)
+                    except (ValueError,TypeError):raise self.server.error('Choose a valid Resume run speed.',400)
+                    if not math.isfinite(run_percent) or not 1<=run_percent<=300:raise self.server.error('Resume run speed must be between1and300%.',400)
             generation=self.generation;s=await self._snapshot(True);result=await self._check(s,resume,True)
             if not result.get('approved'):raise self.server.error(result.get('reason','Verification failed')+' '+ '; '.join(v['message'] for v in result.get('violations',[])+result.get('return_violations',[])),409)
             # Re-read after hashing/analysis to catch any concurrent origin/jog change.
@@ -233,6 +300,12 @@ class CNCPreflight:
             if generation!=self.generation or fresh['gcode_move']['position'][:3]!=s['gcode_move']['position'][:3] or fresh['gcode_move']['gcode_position'][:3]!=s['gcode_move']['gcode_position'][:3]:raise self.server.error('Position or zero changed during verification. Try again.',409)
             reason=self._idle_reason(fresh,resume)
             if reason:raise self.server.error(reason,409)
+            health=getattr(self,'health',None)
+            if health:
+                blocked=await health.blocked()
+                if blocked:raise self.server.error(blocked,409)
+            blocks=await self.server.lookup_component('database').get_item('lowrider','keepout',[])
+            if hashlib.sha256(json.dumps(blocks,sort_keys=True).encode()).hexdigest()!=result.get('keepout_sha256'):raise self.server.error('Keep-out settings changed during verification. Verify again.',409)
             gm=fresh['gcode_move'];offset=[a-b for a,b in zip(gm['position'][:3],gm['gcode_position'][:3])]
             commands=[]
             for i,axis in enumerate('xyz'):
@@ -240,6 +313,7 @@ class CNCPreflight:
                 commands.append(f'SET_GCODE_VARIABLE MACRO=_CNC_PREFLIGHT_STATE VARIABLE=machine_{axis} VALUE={gm["position"][i]:.9f}')
             commands.append(f'SET_GCODE_VARIABLE MACRO=_CNC_PREFLIGHT_STATE VARIABLE=expires VALUE={fresh["toolhead"]["estimated_print_time"]+5:.6f}')
             if resume:
+                if run_percent is not None:commands.append(f'SET_GCODE_VARIABLE MACRO=PAUSE_BASE VARIABLE=factor VALUE={run_percent/100:.9f}')
                 commands.extend(['SET_GCODE_VARIABLE MACRO=_CNC_PREFLIGHT_STATE VARIABLE=resume_approved VALUE=1','RESUME'])
             else:
                 name=self.job['filename'];commands.extend([f'SET_GCODE_VARIABLE MACRO=_CNC_PREFLIGHT_STATE VARIABLE=filename VALUE=\'"{name}"\'','SET_GCODE_VARIABLE MACRO=_CNC_PREFLIGHT_STATE VARIABLE=start_approved VALUE=1',f'SDCARD_PRINT_FILE FILENAME="{name}"']);self.initial_machine=gm['position'][:3]

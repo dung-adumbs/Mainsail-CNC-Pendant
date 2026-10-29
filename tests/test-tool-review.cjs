@@ -1,0 +1,12 @@
+const assert=require('assert/strict');const {collect,identity,missing,specs}=require('../src/cnc-tool-review.js');
+const tool={number:6,description:'CHECK BEFORE USE - flat',type:'flat end mill',geometry:{DC:3.175,SFDM:3.175,LCF:15,OAL:38,NOF:1,RE:0,TA:0}};
+const stage=(path,tool)=>({path,sha256:path+'hash',tools:['T6 · CHECK BEFORE USE - flat'],fusionOperations:[{tool,rpm:16000}]});
+const rows=collect([stage('a',tool),stage('b',tool),stage('a',tool)]);assert.equal(rows.length,1);assert.equal(rows[0].sources.length,2);assert(rows[0].required);assert.equal(rows[0].missing.length,0);
+assert.equal(identity({...tool,geometry:{TA:0,RE:0,NOF:1,OAL:38,LCF:15,SFDM:3.175,DC:3.175}}),identity(tool));
+const changed={...tool,geometry:{...tool.geometry,DC:2}};assert.equal(collect([stage('a',tool),stage('b',changed)]).length,2);
+assert(missing({...tool,geometry:{...tool.geometry,LCF:undefined}}).includes('flute length'));
+assert(missing({...tool,geometry:{...tool.geometry,OAL:3}}).some(x=>x.includes('shorter')));
+assert(missing({...tool,type:'tapered ball end mill',geometry:{...tool.geometry,RE:.25,TA:undefined}}).includes('taper angle'));
+assert(collect([{path:'legacy',tools:['T1 · CHECK BEFORE USE - unknown']}])[0].missing.length>0);
+assert.equal(collect([]).length,0);assert(specs(tool).some(([label,value])=>label==='Flutes'&&value==='1'));
+console.log('PASS: tool identity, returning-tool deduplication, same-number geometry separation, missing essential/taper dimensions and legacy attention blocking.');

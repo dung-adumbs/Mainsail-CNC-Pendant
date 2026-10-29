@@ -85,6 +85,10 @@ The standard Mainsail dashboard stays available. Open `/cnc-pendant.html` direct
 
 [Android setup and build instructions](docs/ANDROID.md). The preview APK is supplied for individual testing, not through Google Play. Browser launch support uses an explicit app link; Android may ask you to choose the app.
 
+## Project review preview
+
+Files now groups new posts by Fusion document/date, with compact stage review, reordering and named shared projects. Single-file groups have a single-tool confirmation. Files stay separate and Start still requires verification. See [project workflow and current limitations](docs/PROJECTS.md).
+
 ## Actual G-code verification
 
 Select a file for a quick metadata warning, then stage it for background scanning of its actual G-code. Start and Resume check current work offsets, machine bounds, file fingerprint and reviewed macro profile. Separate analysis files leave original G-code unchanged. Paused X/Y re-zeroing is blocked; a new tool Z zero requires re-verification. Tested G-code files with 9,220–224,482 moves scanned in about 1.5–40 seconds on the reference Pi. Unsupported commands fail closed.

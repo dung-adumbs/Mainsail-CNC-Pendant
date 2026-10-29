@@ -53,7 +53,7 @@
     catch(error){homingNotice(error.message);}
   }
   function showForcedWarning(){
-    const modal=cncDialog('Forced unhomed motion');const note=document.createElement('p');note.textContent='Position and travel limits are UNKNOWN on unhomed axes. Safe Z and keep-out clearance cannot be verified there. Forced buttons move only 0.1 or 1 mm at 1 mm/s, one move per press. Homed axes retain travel checks; unknown clearance is treated conservatively. Any homing, restart or motor disable exits this mode.';modal.dialog.append(note);
+    const modal=cncDialog('Forced unhomed motion');const note=document.createElement('p');note.textContent='Position and travel limits are UNKNOWN on unhomed axes. Safe Z and keep-out clearance cannot be verified there. Forced buttons move only 0.1 or 1 mm at '+(globalThis.window?.CncSettings?.velocity?.().fromSecond(1)||1)+' '+(globalThis.window?.CncSettings?.velocity?.().unit||'mm/s')+', one move per press. Homed axes retain travel checks; unknown clearance is treated conservatively. Any homing, restart or motor disable exits this mode.';modal.dialog.append(note);
     modal.add('I understand — enable forced motion',()=>{modal.dialog.close();setForcedMode(true);},'#b71c1c');modal.add('Cancel',()=>modal.dialog.close());modal.open();
   }
   async function refreshForceStatus(){
@@ -108,7 +108,7 @@
     const home=document.getElementById('lowrider-home-dialog');if(home){home.textContent=enabled?'Home / Forced':'Home';home.style.backgroundColor=homeButtonColor(status,enabled);home.dataset.allHomed=String(status?.toolhead?.homed_axes==='xyz');}
     let banner=document.getElementById('lowrider-forced-banner');
     if(pad&&!banner){banner=document.createElement('div');banner.id='lowrider-forced-banner';banner.style.cssText='display:none;background:#b71c1c;color:white;font-size:11px;font-weight:bold;text-align:center;padding:6px;margin:4px 0';pad.before(banner);}
-    if(banner){banner.style.display=enabled?'block':'none';const missing='XYZ'.split('').filter(a=>!status?.toolhead?.homed_axes?.includes(a.toLowerCase())).join(', ');banner.textContent=`FORCED UNHOMED MOTION: ${missing} — position / limits unknown; 1 mm/s. Yellow motor: Move; red: Hold.`;}
+    if(banner){banner.style.display=enabled?'block':'none';const missing='XYZ'.split('').filter(a=>!status?.toolhead?.homed_axes?.includes(a.toLowerCase())).join(', ');banner.textContent=`FORCED UNHOMED MOTION: ${missing} — position / limits unknown; ${globalThis.window?.CncSettings?.velocity?.().fromSecond(1)||1} ${globalThis.window?.CncSettings?.velocity?.().unit||'mm/s'}. Yellow motor: Move; red: Hold.`;}
   }
 
   const forceStyle=document.createElement('style');forceStyle.textContent='@keyframes cncForceFlash{50%{filter:brightness(.55)}}.lowrider-force-flash:not(:disabled){animation:cncForceFlash .7s infinite}.lowrider-forced-panel{outline:3px solid #ff1744;outline-offset:2px}';document.head.append(forceStyle);
@@ -148,6 +148,9 @@
     if(axis==='Z'&&z<safeJogZ&&target>safeJogZ){
       return command(safeJogZ,Math.min(selected,belowZ5Cap))+'\n'+command(target,selected);
     }
+    if(axis==='Z'&&z>safeJogZ&&target<safeJogZ){
+      return command(safeJogZ,selected)+'\n'+command(target,Math.min(selected,belowZ5Cap));
+    }
     return command(target,effectiveJogPercent(axis,target,status,selected));
   }
   function effectiveJogPercent(axis,target,status,selected=jogSpeed) {
@@ -165,8 +168,8 @@
   function confirmClearance(axis,move,status) {
     return new Promise(resolve=>{
       const z=axis==='Z'?move.target:status.gcode_move.gcode_position[2];
-      const modal=cncDialog(`Move tool to work ${axis} ${move.target.toFixed(2)} mm?`);
-      const detail=document.createElement('p');detail.textContent=`Work Z will be ${z.toFixed(2)} mm, below the Z${safeJogZ} clearance. Check the tool and workpiece before moving. Jog speed is capped at ${effectiveJogPercent(axis,move.target,status)}%.`;modal.dialog.append(detail);
+      const modal=cncDialog(`Move tool to work ${axis} ${coordinateText(move.target,2)} ${document.documentElement.dataset.coordinateUnit||'mm'}?`);
+      const detail=document.createElement('p');detail.textContent=`Work Z will be ${coordinateText(z,2)} ${document.documentElement.dataset.coordinateUnit||'mm'}, below the Z${coordinateText(safeJogZ,2)} clearance. Check the tool and workpiece before moving. Jog speed is capped at ${effectiveJogPercent(axis,move.target,status)}%.`;modal.dialog.append(detail);
       let approved=false;modal.dialog.addEventListener('close',()=>resolve(approved),{once:true});
       modal.add('Move',()=>{approved=true;modal.dialog.close();},'#b71c1c');modal.add('Cancel',()=>modal.dialog.close());modal.open();
     });
@@ -184,7 +187,7 @@
     if(response.status===404){keepoutBlocks=[];return;}
     const data=await response.json();
     if(!response.ok||data.error||!Array.isArray(data.result?.value))throw Error('Cannot verify keep-out settings; jog cancelled');
-    keepoutBlocks=data.result.value;
+    keepoutBlocks=data.result.value;document.dispatchEvent(new CustomEvent('cnc-keepouts',{detail:{count:keepoutBlocks.filter(b=>b.enabled).length}}));
     if(keepoutBlocks.some(b=>b.enabled&&!validKeepout(b)))throw Error('Invalid enabled keep-out block; jog cancelled');
   }
   function validKeepout(b){return ['xmin','xmax','ymin','ymax','safeZ','margin'].every(k=>Number.isFinite(b[k]))&&b.xmin<b.xmax&&b.ymin<b.ymax&&b.margin>=0;}
@@ -206,19 +209,19 @@
         if(Math.abs(d)<1e-9){if(start[j]<low[j]||start[j]>high[j]){enter=2;break;}}
         else{const a=(low[j]-start[j])/d,c=(high[j]-start[j])/d;enter=Math.max(enter,Math.min(a,c));exit=Math.min(exit,Math.max(a,c));}
       }
-      if(enter<=exit)return `Keep-out: ${b.name||'protected area'}. Raise above machine Z ${b.safeZ.toFixed(2)} mm before crossing.`;
+      if(enter<=exit)return `Keep-out: ${b.name||'protected area'}. Raise above machine Z ${globalThis.window?.CncSettings?.length?.().format(b.safeZ)||b.safeZ.toFixed(2)} ${globalThis.window?.CncSettings?.get('units')||'mm'} before crossing.`;
     }
     return '';
   }
   async function saveKeepouts(blocks){
     const response=await fetch('/server/database/item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({namespace:'lowrider',key:'keepout',value:blocks})});
-    const data=await response.json();if(!response.ok||data.error)throw Error(data.error?.message||'Cannot save keep-out settings');keepoutBlocks=blocks;updateAvailability();
+    const data=await response.json();if(!response.ok||data.error)throw Error(data.error?.message||'Cannot save keep-out settings');keepoutBlocks=blocks;document.dispatchEvent(new CustomEvent('cnc-keepouts',{detail:{count:blocks.filter(b=>b.enabled).length}}));updateAvailability();
   }
   function mountKeepoutPanel(toolhead){
     if(!toolhead||document.getElementById('lowrider-keepout-panel'))return;
     const panel=document.createElement('section');panel.id='lowrider-keepout-panel';panel.className='v-card v-sheet theme--dark';panel.style.cssText='padding:14px;margin:12px 0;background:#252525;color:white';
     const heading=document.createElement('h3');heading.textContent='Keep-out areas';heading.style.cssText='font-size:15px;margin:0 0 8px';panel.append(heading);
-    const note=document.createElement('p');note.textContent='Dashboard jogging only. All dimensions are machine coordinates in mm, fixed to the table. Blocks do not protect program files, console commands or homing. Clearance expands X/Y for the cutter and clamps. Changes apply to new jog commands, not moves already queued.';note.style.cssText='font-size:12px;line-height:1.4';panel.append(note);
+    const note=document.createElement('p');note.textContent='Machine coordinates in the selected units, fixed to the table. Enabled blocks guard pendant moves and are checked conservatively during job verification. Console commands and homing bypass these checks. Clearance expands X/Y for the cutter and clamps. Changes do not protect moves already queued.';note.style.cssText='font-size:12px;line-height:1.4';panel.append(note);
     const rows=document.createElement('div');panel.append(rows);
     const feedback=document.createElement('div');feedback.style.cssText='font-size:12px;padding-top:6px';panel.append(feedback);
     async function render(){
@@ -235,20 +238,20 @@
             const apply=async()=>{toggle.disabled=true;try{await loadKeepout();const next=keepoutBlocks.slice();if(!next[index])throw Error('Set block boundaries first');next[index]={...next[index],enabled:!current.enabled};await saveKeepouts(next);await render();}catch(e){feedback.textContent=e.message;}finally{toggle.disabled=false;}};
             if(current.enabled){const modal=cncDialog('Turn off keep-out protection?');const text=document.createElement('p');text.textContent=`Are you sure? Jogging will be allowed through ${current.name}.`;modal.dialog.append(text);modal.add('Yes, turn off',()=>{modal.dialog.close();apply();},'#b71c1c');modal.add('Cancel',()=>modal.dialog.close());modal.open();}else await apply();
           }catch(e){feedback.textContent=e.message;}
-        });row.append(edit,toggle);rows.append(row);const summary=document.createElement('div');summary.style.cssText='font-size:11px;color:#ccc;padding:4px 0 8px';summary.textContent=Number.isFinite(block.xmin)?`X ${block.xmin} to ${block.xmax}; Y ${block.ymin} to ${block.ymax}; Safe Z: ${Number.isFinite(block.safeZ)?block.safeZ+' mm':'set before enabling'}`:'Set boundaries to use this block';rows.append(summary);
+        });row.append(edit,toggle);rows.append(row);const summary=document.createElement('div');summary.style.cssText='font-size:11px;color:#ccc;padding:4px 0 8px';summary.textContent=Number.isFinite(block.xmin)?`X ${coordinateText(block.xmin,0)} to ${coordinateText(block.xmax,0)}; Y ${coordinateText(block.ymin,1)} to ${coordinateText(block.ymax,1)}; Safe Z: ${Number.isFinite(block.safeZ)?coordinateText(block.safeZ,2)+' '+(document.documentElement.dataset.coordinateUnit||'mm'):'set before enabling'}`:'Set boundaries to use this block';rows.append(summary);
       }
     }
     async function editBlock(index){
       try{await loadKeepout();}catch(e){feedback.textContent=e.message;return;}
-      const b=keepoutBlocks[index]||{name:`Block ${index+1}`,enabled:false,margin:5};const modal=cncDialog('Keep-out block');const inputs={};
+      const units=window.CncSettings.length(),b=keepoutBlocks[index]||{name:`Block ${index+1}`,enabled:false,margin:5};const modal=cncDialog('Keep-out block');const inputs={};
       const name=document.createElement('input');name.value=b.name||`Block ${index+1}`;name.setAttribute('aria-label','Block name');name.style.cssText='width:100%;background:#202020;color:white;border:1px solid #777;padding:8px';modal.dialog.append(name);
       const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px';
       for(const [key,label] of [['xmin','X min'],['xmax','X max'],['safeZ','Safe Z height'],['margin','XY clearance'],['ymin','Y min'],['ymax','Y max']]){
-        const wrap=document.createElement('label');wrap.textContent=label;wrap.style.cssText='font-size:12px;min-width:0';const slots={xmin:[1,2],xmax:[3,2],safeZ:[2,2],margin:[2,4],ymin:[2,3],ymax:[2,1]};wrap.style.gridColumn=slots[key][0];wrap.style.gridRow=slots[key][1];const input=document.createElement('input');input.type='number';input.step='any';input.value=Number.isFinite(b[key])?b[key]:'';input.style.cssText='display:block;width:100%;min-height:40px;box-sizing:border-box;background:#202020;color:white;border:1px solid #777;padding:6px';inputs[key]=input;wrap.append(input);grid.append(wrap);
+        const wrap=document.createElement('label');wrap.textContent=label+' ('+units.unit+')';wrap.style.cssText='font-size:12px;min-width:0';const slots={xmin:[1,2],xmax:[3,2],safeZ:[2,2],margin:[2,4],ymin:[2,3],ymax:[2,1]};wrap.style.gridColumn=slots[key][0];wrap.style.gridRow=slots[key][1];const input=document.createElement('input');input.type='number';input.step='any';input.value=Number.isFinite(b[key])?units.format(b[key]):'';input.style.cssText='display:block;width:100%;min-height:40px;box-sizing:border-box;background:#202020;color:white;border:1px solid #777;padding:6px';input.dataset.initial=input.value;inputs[key]=input;wrap.append(input);grid.append(wrap);
       }modal.dialog.append(grid);
-      const detail=document.createElement('p');detail.textContent='Machine coordinates, mm. Crossing requires Z above Safe Z. Clearance should cover cutter radius plus extra space. Homing and files bypass this protection.';detail.style.fontSize='12px';modal.dialog.append(detail);
+      const detail=document.createElement('p');detail.textContent='Machine coordinates, '+units.unit+'. Crossing requires Z above Safe Z. Clearance should cover cutter radius plus extra space. Homing and files bypass this protection.';detail.style.fontSize='12px';modal.dialog.append(detail);
       const error=document.createElement('div');error.style.color='#ffaaaa';modal.dialog.append(error);
-      const apply=async(enabled)=>{const nextBlock={name:name.value.trim()||`Block ${index+1}`,enabled};for(const [key,input] of Object.entries(inputs)){if(!input.value.trim()){error.textContent='Fill in every boundary, safe height and clearance.';return;}nextBlock[key]=Number(input.value);}
+      const apply=async(enabled)=>{if(window.CncSettings.get('units')!==units.unit){error.textContent='Units changed. Reopen this block.';return;}const nextBlock={name:name.value.trim()||`Block ${index+1}`,enabled};for(const [key,input] of Object.entries(inputs)){if(!input.value.trim()){error.textContent='Fill in every boundary, safe height and clearance.';return;}nextBlock[key]=input.value===input.dataset.initial&&Number.isFinite(b[key])?b[key]:units.toMm(Number(input.value));}
         if(!validKeepout(nextBlock)){error.textContent='Use finite numbers, minimums below maximums, and non-negative clearance.';return;}
         if(b.enabled&&!enabled){error.textContent='To turn protection off, use its ON/OFF toggle and confirmation.';return;}
         try{await loadKeepout();const next=keepoutBlocks.slice();while(next.length<=index)next.push({name:`Block ${next.length+1}`,enabled:false});next[index]=nextBlock;await saveKeepouts(next);modal.dialog.close();await render();}catch(e){error.textContent=e.message;}
@@ -256,7 +259,7 @@
       modal.add(b.enabled?'Save protected block':'Save and enable',()=>apply(true),'#b71c1c');if(!b.enabled)modal.add('Save with protection off',()=>apply(false));modal.add('Cancel',()=>modal.dialog.close());modal.open();
     }
     const center=document.querySelector('.macros-panel')?.parentElement; (center||toolhead.parentElement).append(panel);
-    render().catch(e=>{feedback.textContent=e.message;});
+    document.addEventListener('cnc-shared-setting',event=>{if(event.detail.key==='units')render().catch(e=>{feedback.textContent=e.message;});});render().catch(e=>{feedback.textContent=e.message;});
   }
 
   function jogMove(axis, step, speed, scale) {
@@ -305,8 +308,8 @@
     const rates = document.getElementById('lowrider-jog-rates');
     if(rates){
       const active=controlStatus?.gcode_move?effectiveJogPercent('X',0,controlStatus):jogSpeed;
-      const number=n=>Number(n.toFixed(2)).toString();
-      const text=forcedEnabled()?'XYZ'.split('').every(a=>forcedAxis(a))?'Forced jog: 1 mm/s':'XYZ'.split('').map(a=>`${a} ${forcedAxis(a)?'1':number((a==='Z'?25:200)*active/100)}`).join(' / ')+' mm/s':`XY ${number(200*active/100)} / Z ${number(25*active/100)} mm/s`;
+      const velocity=globalThis.window?.CncSettings?.velocity?.()||{unit:'mm/s',fromSecond:n=>n};const number=n=>Number(velocity.fromSecond(n).toFixed(2)).toString();
+      const text=forcedEnabled()?'XYZ'.split('').every(a=>forcedAxis(a))?'Forced jog: '+number(1)+' '+velocity.unit:'XYZ'.split('').map(a=>`${a} ${forcedAxis(a)?number(1):number((a==='Z'?25:200)*active/100)}`).join(' / ')+' '+velocity.unit:`XY ${number(200*active/100)} / Z ${number(25*active/100)} ${velocity.unit}`;
       if(rates.textContent!==text)rates.textContent=text;
       rates.style.display='block';rates.title='Commanded jog speeds after the safe-height cap; acceleration may reduce speed during short moves.';
     }
@@ -317,7 +320,7 @@
     const guard = document.getElementById('lowrider-z5-allow');
     if (guard) {
       guard.textContent = allowBelowZ5 ? 'Below safe Z\nAllowed' : 'Below safe Z\nLocked';
-      guard.title = `Unlock dashboard jogging below work Z${safeJogZ} mm. Relocks above that height, on homing, or when work zeros change. Upward escape remains available.`;
+      guard.title = `Unlock dashboard jogging below work Z${coordinateText(safeJogZ,2)} ${document.documentElement.dataset.coordinateUnit||'mm'}. Relocks above that height, on homing, or when work zeros change. Upward escape remains available.`;
       guard.style.backgroundColor = allowBelowZ5 ? '#b71c1c' : '#2e7d32';
       guard.setAttribute('aria-pressed',String(allowBelowZ5));
     }
@@ -386,7 +389,8 @@
     const caption = document.createElement('div');caption.id='lowrider-jog-caption'; caption.textContent = 'Jog speed %';
     caption.style.cssText = 'grid-column:1/-1;text-align:center;font-size:11px;opacity:.8';
     const value = document.createElement('input'); value.id='lowrider-jog-rate';value.type='text';value.inputMode='decimal';value.setAttribute('aria-label','Jog speed percent: active, selected in parentheses');value.addEventListener('focus',()=>{value.value=String(jogSpeed);value.select();});
-    value.title='Jog percentage, 10 to 100';value.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();value.blur();}});value.addEventListener('blur',()=>{const rate=Number(value.value.replace(/%/g,'').trim());if(Number.isFinite(rate)&&rate>=10&&rate<=100){jogSpeed=rate;saveShared('jogSpeed',rate);}else homingNotice('Enter a jog percentage from 10 to 100.');refreshJogChoices();});
+    value.title='Jog percentage, 10 to 100';value.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();value.blur();}});value.addEventListener('blur',()=>{if(value.readOnly)return;const rate=Number(value.value.replace(/%/g,'').trim());if(Number.isFinite(rate)&&rate>=10&&rate<=100){jogSpeed=rate;saveShared('jogSpeed',rate);}else homingNotice('Enter a jog percentage from 10 to 100.');refreshJogChoices();});
+    value.readOnly=true;value.title='Open Jog speed editor';value.addEventListener('click',()=>{const modal=cncDialog('Jog speed'),row=document.createElement('label'),edit=document.createElement('input');row.textContent='Jog speed (%) ';edit.type='number';edit.inputMode='decimal';edit.min='10';edit.max='100';edit.value=String(jogSpeed);edit.setAttribute('aria-label','Selected jog speed percent');row.append(edit);modal.dialog.append(row);modal.add('Apply',()=>{const n=Number(edit.value);if(!edit.value.trim()||!Number.isFinite(n)||n<10||n>100){edit.setCustomValidity('Enter 10 to 100 percent');edit.reportValidity();return;}jogSpeed=n;saveShared('jogSpeed',n);refreshJogChoices();modal.dialog.close();});modal.add('Cancel',()=>modal.dialog.close());modal.open();});
     value.style.cssText = 'grid-column:2/span 2;grid-row:2;width:100%;min-width:0;text-align:center;font-size:12px;font-weight:bold;background:#202020;color:inherit;border:1px solid #777;border-radius:3px';
     const rates = document.createElement('div'); rates.id = 'lowrider-jog-rates';
     rates.style.cssText = 'grid-column:1/-1;grid-row:4;text-align:center;font-size:9px;opacity:.8;white-space:nowrap';
@@ -548,9 +552,18 @@
       notify(`${action} in progress...`);
       const response=await pending;
       const result=await response.json();if(!response.ok||result.error)throw Error(result.error?.message||'Homing command failed.');
-      notify(`${action} complete.`);
-    }catch(error){notify(`Command not completed: ${error.message}`);}
+      notify(`${action} complete.`);return true;
+    }catch(error){notify(`Command not completed: ${error.message}`);return false;}
     finally{homingPending=false;updateAvailability();}
+  }
+  function homeXYChoice(){
+    const mode=window.CncSettings?.get('homeXYMode')||'spoilboard';
+    return mode==='machine'?{mode,label:'Machine coordinates',command:'RESET_XY_TO_MACHINE'}:mode==='last'?{mode,label:'Last saved work origin',command:'RESET_XY_TO_LAST'}:{mode:'spoilboard',label:'Spoilboard coordinates',command:'RESET_XY_TO_SPOILBOARD'};
+  }
+  async function homeAllWithPolicy(){
+    const choice=homeXYChoice(),homed=await runHomeCommand('HOME_ALL');if(!homed)return;
+    try{await runCncCommand(choice.command,true);homingNotice(`Homing complete. Work XY now uses ${choice.label.toLowerCase()}. Tool Z zero was not changed.`);}
+    catch(error){homingNotice(`Homing completed, but ${choice.label.toLowerCase()} could not be applied: ${error.message}`);}
   }
   document.addEventListener('click', event => {
     const button = event.target.closest?.('.macrogroup_lowrider-homing_panel button, button[data-lowrider-shake], button[data-lowrider-disable-steppers]');
@@ -610,7 +623,7 @@
     }
     no.addEventListener('click', () => dialog.close());
     yes.addEventListener('click', async () => {
-      yes.disabled=true;dialog.close();await runHomeCommand(command,shake);
+      yes.disabled=true;dialog.close();if(!shake&&command==='HOME_ALL')await homeAllWithPolicy();else await runHomeCommand(command,shake);
     });
     dialog.addEventListener('close', () => { dialog.remove(); button.focus(); });
     buttons.append(no, yes);
@@ -690,21 +703,44 @@
     } finally { setTimeout(refreshEndstops, 500); }
   }
   async function runCncCommand(script, idleOnly=false) {
+    const requestedScript=script;
     if(script.trim()==='RESUME'){if(!window.CncPreflight)throw Error('Verification controls are loading.');return window.CncPreflight.resume();}
-    const response=await fetch('/printer/objects/query?webhooks&print_stats&pause_resume&virtual_sdcard&idle_timeout&toolhead',{cache:'no-store',signal:AbortSignal.timeout(5000)});
+    const response=await fetch('/printer/objects/query?webhooks&print_stats&pause_resume&virtual_sdcard&idle_timeout&toolhead&gcode_move',{cache:'no-store',signal:AbortSignal.timeout(5000)});
     const status=(await response.json()).result?.status;
     if(!response.ok||status?.webhooks.state!=='ready')throw Error('Klipper is not ready');
     if(idleOnly){const reason=manualMotionReason(status);if(reason)throw Error(reason);if(isMachinePaused(status)&&script!=='ZERO_Z')throw Error('Only tool Z zero may change while paused; keep the job XY origin unchanged.');}
     if(script.startsWith('ZERO_')){const axes=script==='ZERO_ALL'?'xyz':script.slice(5).toLowerCase();if([...axes].some(axis=>!status.toolhead.homed_axes.includes(axis)))throw Error('Home the selected axes before setting work zero');}
+    if(script==='RESET_WORK_ORIGIN'){
+      const reason=manualMotionReason(status);if(reason)throw Error(reason);
+      if(isMachinePaused(status)||status.print_stats?.state==='paused')throw Error('Finish or cancel the paused job before resetting work zeros');
+      if(!['x','y','z'].every(axis=>status.toolhead?.homed_axes?.includes(axis)))throw Error('Home all axes before resetting work zeros');
+      const position=status.gcode_move?.position;if(!position||![0,1,2].every(i=>Number.isFinite(position[i])))throw Error('Machine coordinates unavailable');
+      script='SET_GCODE_OFFSET X=0 Y=0 Z=0 MOVE=0\nG92 '+['X','Y','Z'].map((axis,i)=>axis+position[i].toFixed(9)).join(' ');
+    }
+    if(['RESET_XY_TO_MACHINE','RESET_XY_TO_SPOILBOARD','RESET_XY_TO_LAST'].includes(script)){
+      const reason=manualMotionReason(status);if(reason)throw Error(reason);
+      if(isMachinePaused(status)||status.print_stats?.state==='paused')throw Error('Finish or cancel the paused job before resetting work XY');
+      if(!['x','y'].every(axis=>status.toolhead?.homed_axes?.includes(axis)))throw Error('Home X and Y before resetting work XY');
+      const position=status.gcode_move?.position;if(!position||![0,1].every(i=>Number.isFinite(position[i])))throw Error('Machine coordinates unavailable');
+      const origin=script==='RESET_XY_TO_MACHINE'?[0,0]:script==='RESET_XY_TO_LAST'?[Number(window.CncSettings?.get('lastWorkOriginX')),Number(window.CncSettings?.get('lastWorkOriginY'))]:[Number(window.CncSettings?.get('spoilboardX')),Number(window.CncSettings?.get('spoilboardY'))];
+      if(!origin.every(Number.isFinite))throw Error('Selected work origin coordinates unavailable');
+      script='SET_GCODE_OFFSET X=0 Y=0 MOVE=0\nG92 X'+(position[0]-origin[0]).toFixed(9)+' Y'+(position[1]-origin[1]).toFixed(9);
+    }
     const sent=await fetch('/printer/gcode/script',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({script})});
     const result=await sent.json();if(!sent.ok||result.error)throw Error(result.error?.message||'Command failed');
+    if(window.CncSettings&&['ZERO_ALL','ZERO_XY','ZERO_X','ZERO_Y','RESET_XY_TO_MACHINE','RESET_XY_TO_SPOILBOARD'].includes(requestedScript)){
+      const position=status.gcode_move?.position||[],current=[Number(position[0])-Number(status.gcode_move?.gcode_position?.[0]),Number(position[1])-Number(status.gcode_move?.gcode_position?.[1])];
+      const origin=requestedScript==='RESET_XY_TO_MACHINE'?[0,0]:requestedScript==='RESET_XY_TO_SPOILBOARD'?[Number(window.CncSettings.get('spoilboardX')),Number(window.CncSettings.get('spoilboardY'))]:[requestedScript==='ZERO_Y'?current[0]:Number(position[0]),requestedScript==='ZERO_X'?current[1]:Number(position[1])];
+      if(origin.every(Number.isFinite)){await window.CncSettings.set('lastWorkOriginX',origin[0]);await window.CncSettings.set('lastWorkOriginY',origin[1]);}
+    }
     if(script==='ZERO_Z'&&isMachinePaused(status)){if(window.CncPreflight)await window.CncPreflight.afterZero();}
     return status;
   }
   function cncDialog(titleText) {
-    const dialog=document.createElement('dialog');dialog.style.cssText='position:fixed;inset:0;margin:auto;width:380px;max-width:92vw;max-height:88dvh;overflow-y:auto;box-sizing:border-box;overscroll-behavior:contain;touch-action:pan-y;background:#252525;color:white;border:1px solid #777;border-radius:8px;padding:20px;font-family:Arial,sans-serif';
+    const dialog=document.createElement('dialog');dialog.setAttribute('aria-label',titleText);dialog.style.cssText='position:fixed;inset:0;margin:auto;width:380px;max-width:92vw;max-height:88dvh;overflow-y:auto;box-sizing:border-box;overscroll-behavior:contain;touch-action:pan-y;background:#252525;color:white;border:1px solid #777;border-radius:8px;padding:20px;font-family:Arial,sans-serif';
     const title=document.createElement('h3');title.textContent=titleText;dialog.append(title);
     dialog.addEventListener('close',()=>dialog.remove());
+    if(/^(Work light|Keep-out block|Stepper idle|Run speed|Jog speed)/i.test(titleText))dialog.addEventListener('click',e=>{const b=dialog.getBoundingClientRect();if(e.target===dialog&&(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)&&!dialog.hasAttribute('aria-busy'))dialog.close();});
     const add=(label,fn,color='#202020')=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.style.cssText=`display:block;width:100%;min-height:44px;margin-top:10px;background:${color};color:white;border:1px solid #777;border-radius:4px;font-size:14px`;button.addEventListener('click',fn);dialog.append(button);return button;};
     return {dialog,add,open(){document.body.append(dialog);dialog.showModal();dialog.querySelector('button:last-child')?.focus({preventScroll:true});}};
   }
@@ -734,7 +770,7 @@
       const homeGrid=homingPanel.querySelector('.col.text-center');
       if(homeGrid&&!document.getElementById('lowrider-home-dialog')){
         const launch=document.createElement('button');launch.id='lowrider-home-dialog';launch.type='button';launch.textContent='Home…';launch.style.cssText='grid-column:1/-1;order:0;min-height:36px;border:1px solid #777;border-radius:4px;background:#1976d2;color:white;font-size:13px';homeGrid.prepend(launch);
-        launch.addEventListener('click',async()=>{try{await freshHomeStatus();}catch(error){homingNotice(error.message);return;}const modal=cncDialog('Home axes');const note=document.createElement('p');note.textContent='Homing can reset work zeros. Recheck them before cutting.';modal.dialog.append(note);for(const command of ['HOME_ALL','HOME_X','HOME_Y','HOME_Z']){const original=homingPanel.querySelector(`[data-lowrider-home-command="${command}"]`);if(!original)continue;const b=modal.add(command==='HOME_ALL'?'Home All':command.slice(5),()=>{modal.dialog.close();if(command==='HOME_ALL'||command==='HOME_Z')runHomeCommand(command);else original.click();},command==='HOME_ALL'?'#1976d2':'#202020');const reason=controlUnavailable(original,controlStatus);b.disabled=!!reason;b.title=reason;}const force=modal.add(forcedEnabled()?'Turn off Forced unhomed motion':'Forced unhomed motion',()=>{modal.dialog.close();if(forcedEnabled())setForcedMode(false);else showForcedWarning();},'#b71c1c');force.disabled=!controlStatus?.cnc_force_jog||(!forcedEnabled()&&controlStatus?.toolhead?.homed_axes==='xyz');modal.add('Cancel',()=>modal.dialog.close());modal.open();});
+        launch.addEventListener('click',async()=>{try{await freshHomeStatus();}catch(error){homingNotice(error.message);return;}const modal=cncDialog('Home axes');const choice=homeXYChoice();const note=document.createElement('p');note.textContent=`Home All will apply ${choice.label.toLowerCase()} to work XY after homing. Change this once in Machine > After Home All. Tool Z zero is preserved.`;modal.dialog.append(note);const homeAll=homingPanel.querySelector('[data-lowrider-home-command="HOME_ALL"]');const preferred=modal.add(`Home All — ${choice.label}`,()=>{modal.dialog.close();homeAllWithPolicy();},'#2e7d32');const preferredReason=homeAll?controlUnavailable(homeAll,controlStatus):'Home All unavailable';preferred.disabled=!!preferredReason;preferred.title=preferredReason;for(const command of ['HOME_X','HOME_Y','HOME_Z']){const original=homingPanel.querySelector(`[data-lowrider-home-command="${command}"]`);if(!original)continue;const b=modal.add(command==='HOME_ALL'?'Home All':command.slice(5),()=>{modal.dialog.close();if(command==='HOME_ALL'||command==='HOME_Z')runHomeCommand(command);else original.click();},command==='HOME_ALL'?'#1976d2':'#202020');const reason=controlUnavailable(original,controlStatus);b.disabled=!!reason;b.title=reason;}const force=modal.add(forcedEnabled()?'Turn off Forced unhomed motion':'Forced unhomed motion',()=>{modal.dialog.close();if(forcedEnabled())setForcedMode(false);else showForcedWarning();},'#b71c1c');force.disabled=!controlStatus?.cnc_force_jog||(!forcedEnabled()&&controlStatus?.toolhead?.homed_axes==='xyz');modal.add('Cancel',()=>modal.dialog.close());modal.open();});
       }
       const launch=document.getElementById('lowrider-home-dialog');
       if(launch&&!document.getElementById('lowrider-quick-homes')){
@@ -757,10 +793,18 @@
       const create=(id,text)=>{const b=document.createElement('button');b.id=id;b.type='button';b.textContent=text;b.className='lowrider-active-button';b.style.cssText='min-height:28px;color:white;background:#202020;border:1px solid #777;border-radius:4px;font-size:12px';box.append(b);return b;};
       const zero=create('lowrider-grid-zero','Zero…');zero.style.backgroundColor='#1976d2';
       zero.addEventListener('click',()=>{
-        const modal=cncDialog('Set this position as work zero?');const explanation=document.createElement('p');explanation.textContent=`Current work position: ${['X','Y','Z'].map((a,i)=>a+' '+(controlStatus?.gcode_move?.gcode_position[i]??0).toFixed(2)).join(' / ')} mm. Choose which coordinates to set to zero; this does not move the tool.`;explanation.style.cssText='font-size:13px;line-height:1.4;margin-top:10px';modal.dialog.append(explanation);
+        const modal=cncDialog('Set this position as work zero?');const explanation=document.createElement('p');explanation.textContent=`Current work position: ${['X','Y','Z'].map((a,i)=>a+' '+coordinateText(controlStatus?.gcode_move?.gcode_position[i]??0,i)).join(' / ')} ${document.documentElement.dataset.coordinateUnit||'mm'}. Choose which coordinates to set to zero; this does not move the tool.`;explanation.style.cssText='font-size:13px;line-height:1.4;margin-top:10px';modal.dialog.append(explanation);
         for(const [label,script,axes] of [['Set Tool Z Zero','ZERO_Z','z'],['Zero All','ZERO_ALL','xyz'],['Zero XY','ZERO_XY','xy'],['Zero X','ZERO_X','x'],['Zero Y','ZERO_Y','y']]){
           const choice=modal.add(label,async()=>{modal.dialog.close();try{await runCncCommand(script,true);allowBelowZ5=false;refreshJogChoices();}catch(error){homingNotice(error.message);}},script==='ZERO_Z'?'#1976d2':'#202020');
           if(script==='ZERO_Z'){choice.style.minHeight='56px';choice.style.fontSize='16px';choice.style.fontWeight='bold';}choice.disabled=[...axes].some(axis=>!controlStatus?.toolhead.homed_axes.includes(axis))||(isMachinePaused(controlStatus)&&script!=='ZERO_Z');if(isMachinePaused(controlStatus)&&script!=='ZERO_Z')choice.title='Keep the job XY origin unchanged while paused';
+        }
+        const origin=[Number(window.CncSettings?.get('spoilboardX')??8.2),Number(window.CncSettings?.get('spoilboardY')??9.5)];
+        for(const [label,script,color,description] of [
+          [`Reset XY to spoilboard (${origin[0].toFixed(3)}, ${origin[1].toFixed(3)} machine)`,'RESET_XY_TO_SPOILBOARD','#2e7d32',`Work X0/Y0 will align to machine X${origin[0].toFixed(3)} / Y${origin[1].toFixed(3)}.`],
+          ['Reset XY to machine coordinates','RESET_XY_TO_MACHINE','#202020','Work X/Y will match the displayed machine X/Y coordinates.']
+        ]){
+          const reset=modal.add(label,()=>{modal.dialog.close();const confirm=cncDialog(label+'?');const note=document.createElement('p');note.textContent='No movement. '+description+' The current tool Z zero is preserved. Previous job XY zeros will be replaced; verify the job before running.';confirm.dialog.append(note);const apply=confirm.add('Apply XY coordinates',async()=>{apply.disabled=true;try{await runCncCommand(script,true);confirm.dialog.close();homingNotice(script==='RESET_XY_TO_SPOILBOARD'?'Work X0/Y0 aligned to the configured spoilboard corner. Tool Z zero was preserved.':'Work X/Y reset to machine coordinates. Tool Z zero was preserved.');}catch(error){apply.disabled=false;homingNotice(error.message);}},color);confirm.add('Cancel',()=>confirm.dialog.close());confirm.open();},color);
+          reset.disabled=!!manualMotionReason(controlStatus)||isMachinePaused(controlStatus)||!['x','y'].every(axis=>controlStatus?.toolhead?.homed_axes?.includes(axis));
         }
         modal.add('Cancel',()=>modal.dialog.close());modal.open();
       });
@@ -833,20 +877,20 @@
     const state=status?.['gcode_macro _LED_IDLE_STATE'];const active=!!state?.automatic;
     document.querySelectorAll('[data-lowrider-disable-steppers]').forEach(b=>b.classList.toggle('lowrider-idle-warning',active));
     const line=document.getElementById('lowrider-idle-countdown');
-    if(line){const now=status?.toolhead?.estimated_print_time||0;const left=Math.max(0,Math.ceil((state?.snooze_until||0)-now));const enabled=(state?.disable_after??1800)>0;const remaining=Math.max(0,Math.ceil((state?.disable_after??1800)-(now-(state?.warning_since??now))));const time=n=>`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;const paused=isMachinePaused(status)||status?.print_stats?.state==='paused';const text=active?(!enabled?'Idle warning; automatic shutdown disabled':paused?'Idle warning; auto-disable held while paused':`Auto-disable in ${time(remaining)} / tap light to snooze`):left>0?`Idle warning snoozed ${time(left)}`:'';if(line.textContent!==text)line.textContent=text;}
-    const button=document.getElementById('lowrider-stepper-timeout');if(button){const reminder=(state?.timeout??1800)/60;const grace=state?.shutdown_minutes??30;const text=(state?.disable_after??1800)>0?`Auto Stepper Disable: ${reminder} + ${grace} min…`:`Auto Stepper Disable: Off (${reminder} min reminder)…`;if(button.textContent!==text)button.textContent=text;button.disabled=status?.webhooks?.state!=='ready';}
+    if(line){const now=status?.toolhead?.estimated_print_time||0;const left=Math.max(0,Math.ceil((state?.snooze_until||0)-now));const enabled=(state?.disable_after??1800)>=0;const remaining=Math.max(0,Math.ceil((state?.disable_after??1800)-(now-(state?.warning_since??now))));const time=n=>`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;const paused=isMachinePaused(status)||status?.print_stats?.state==='paused';const text=active?(!enabled?'Idle warning; automatic shutdown disabled':paused?'Idle warning; auto-disable held while paused':`Auto-disable in ${time(remaining)} / tap light to snooze`):left>0?`Idle warning snoozed ${time(left)}`:'';if(line.textContent!==text)line.textContent=text;}
+    const button=document.getElementById('lowrider-stepper-timeout');if(button){const reminder=(state?.timeout??1800)/60;const grace=state?.shutdown_minutes??30;const text=(state?.disable_after??1800)>=0?`Auto Stepper Disable: ${reminder} + ${grace} min…`:`Auto Stepper Disable: Off (${reminder} min reminder)…`;if(button.textContent!==text)button.textContent=text;button.disabled=status?.webhooks?.state!=='ready';}
 
   }
   function showStepperTimeout() {
     const state=controlStatus?.['gcode_macro _LED_IDLE_STATE'];const modal=cncDialog('Auto Stepper Disable');
-    const explanation=document.createElement('p');explanation.textContent='Two stages: an idle reminder, then a grace period before disabling the steppers. Running and paused jobs never automatically disable. Both settings are saved on the controller across reboots.';explanation.style.cssText='font-size:13px;line-height:1.4';modal.dialog.append(explanation);
-    function minutesField(title,aria,value){const label=document.createElement('label');label.textContent=title;label.style.cssText='display:flex;justify-content:space-between;gap:10px;align-items:center;margin:14px 0';const input=document.createElement('input');input.type='number';input.min='1';input.max='1440';input.step='1';input.value=String(value);input.setAttribute('aria-label',aria);input.style.cssText='width:75px;padding:6px;background:#202020;color:white;border:1px solid #777';label.append(input);modal.dialog.append(label);return input;}
+    const explanation=document.createElement('p');explanation.textContent='Zero means no delay; 0.1 minute is six seconds. Two stages: an idle reminder, then a grace period before disabling the steppers. Running and paused jobs never automatically disable. Both settings are saved on the controller across reboots.';explanation.style.cssText='font-size:13px;line-height:1.4';modal.dialog.append(explanation);
+    function minutesField(title,aria,value){const label=document.createElement('label');label.textContent=title;label.style.cssText='display:flex;justify-content:space-between;gap:10px;align-items:center;margin:14px 0';const input=document.createElement('input');input.type='number';input.min='0';input.max='1440';input.step='0.1';input.value=String(value);input.setAttribute('aria-label',aria);input.style.cssText='width:75px;padding:6px;background:#202020;color:white;border:1px solid #777';label.append(input);modal.dialog.append(label);return input;}
     const reminder=minutesField('Idle reminder (minutes)','Idle reminder minutes',(state?.timeout??1800)/60);
     const grace=minutesField('Disable grace period (minutes)','Stepper disable grace minutes',state?.shutdown_minutes??30);
-    const offLabel=document.createElement('label');offLabel.style.cssText='display:flex;gap:10px;align-items:center;font-size:13px;margin:14px 0';const off=document.createElement('input');off.type='checkbox';off.checked=(state?.disable_after??1800)<=0;off.setAttribute('aria-label','Never automatically disable steppers');offLabel.append(off,document.createTextNode('Never automatically disable steppers'));modal.dialog.append(offLabel);
+    const offLabel=document.createElement('label');offLabel.style.cssText='display:flex;gap:10px;align-items:center;font-size:13px;margin:14px 0';const off=document.createElement('input');off.type='checkbox';off.checked=(state?.disable_after??1800)<0;off.setAttribute('aria-label','Never automatically disable steppers');offLabel.append(off,document.createTextNode('Never automatically disable steppers'));modal.dialog.append(offLabel);
     const total=document.createElement('p');total.style.cssText='font-size:12px;line-height:1.4';modal.dialog.append(total);
     const update=()=>{grace.disabled=off.checked;total.textContent=off.checked?`Reminder after ${reminder.value} idle minutes; automatic stepper disable is off.`:`Reminder after ${reminder.value} idle minutes, then ${grace.value} minutes grace: about ${Number(reminder.value)+Number(grace.value)} idle minutes total.`;};reminder.addEventListener('input',update);grace.addEventListener('input',update);off.addEventListener('change',update);update();
-    modal.add('Apply',async()=>{for(const input of [reminder,grace]){const value=Number(input.value);if(!input.value.trim()||!Number.isFinite(value)||value<1||value>1440){input.setCustomValidity('Enter 1 to 1440 minutes');input.reportValidity();return;}input.setCustomValidity('');}modal.dialog.close();try{await runCncCommand(`SET_STEPPER_TIMEOUT WARNING_MINUTES=${Number(reminder.value)} MINUTES=${Number(grace.value)} ENABLE=${off.checked?0:1}`);}catch(error){homingNotice(error.message);}});modal.add('Cancel',()=>modal.dialog.close());modal.open();
+    modal.add('Apply',async()=>{for(const input of [reminder,grace]){const value=Number(input.value);if(!input.value.trim()||!Number.isFinite(value)||value<0||value>1440||Math.abs(value*10-Math.round(value*10))>0.00001){input.setCustomValidity('Enter 0 to 1440 minutes, at most one decimal');input.reportValidity();return;}input.setCustomValidity('');}modal.dialog.close();try{await runCncCommand(`SET_STEPPER_TIMEOUT WARNING_MINUTES=${Number(reminder.value)} MINUTES=${Number(grace.value)} ENABLE=${off.checked?0:1}`);}catch(error){homingNotice(error.message);}});modal.add('Cancel',()=>modal.dialog.close());modal.open();
   }
 
   let pauseDisplayKey=null,pauseLineText='',pauseLookupPending=false,pauseLookupAttempted=false;
@@ -1144,7 +1188,8 @@
           }else applyRunSpeed(percent).catch(error=>homingNotice(error.message));
         }
         value.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();value.blur();}});
-        value.addEventListener('blur',()=>requestRunSpeed(value.value.trim()?Number(value.value):NaN));
+        value.readOnly=true;value.setAttribute('role','button');value.title='Open Run speed editor';
+        value.addEventListener('click',()=>{const modal=cncDialog('Run speed'),row=document.createElement('label'),edit=document.createElement('input');row.textContent='Run speed (%) ';edit.type='number';edit.inputMode='decimal';edit.min='1';edit.max='300';edit.value=value.value;edit.setAttribute('aria-label','Run speed percent');row.append(edit);modal.dialog.append(row);modal.add('Apply',()=>{const n=Number(edit.value);if(!edit.value.trim()||!Number.isFinite(n)||n<1||n>300){edit.setCustomValidity('Enter 1 to 300 percent');edit.reportValidity();return;}modal.dialog.close();requestRunSpeed(n);});modal.add('Cancel',()=>modal.dialog.close());modal.open();});
         const buttons={};
         for(const [action,label] of [['minus','▼'],['plus','▲'],['min','Min'],['half','50%'],['max','Max']]){
           const button=document.createElement('button');button.type='button';button.textContent=label;button.dataset.lowriderRunAction=action;

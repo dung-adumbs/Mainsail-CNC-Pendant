@@ -12,3 +12,9 @@ vm.runInContext(b.slice(b.indexOf('  function stepperTimer('),b.indexOf('  funct
 const state={webhooks:{state:'ready'},stepper_enable:{steppers:{x:true}},toolhead:{estimated_print_time:100},print_stats:{state:'standby'},'gcode_macro _LED_IDLE_STATE':{steady:1,idle_since:0,timeout:1800,disable_after:1800}};
 assert.equal(c.stepperTimer(state).seconds,3500);state['gcode_macro _LED_IDLE_STATE'].automatic=1;state['gcode_macro _LED_IDLE_STATE'].warning_since=50;assert.equal(c.stepperTimer(state).seconds,1750);state.pause_resume={is_paused:true};assert.equal(c.stepperTimer(state).label,'Auto-disable held');state.pause_resume.is_paused=false;state['gcode_macro _LED_IDLE_STATE'].automatic=0;state['gcode_macro _LED_IDLE_STATE'].snooze_until=200;assert.equal(c.stepperTimer(state).seconds,1900);
 console.log('PASS: split Safe Z speeds, 60/61 preset boundary, XY confirmation and accurate idle/grace/snooze countdowns.');
+
+status.gcode_move.gcode_position[2]=60;c.jogSpeed=100;
+assert.equal(c.jogCommand('Z',0,status),'_CLIENT_LINEAR_MOVE Z=25 F=750 ABSOLUTE=1\n_CLIENT_LINEAR_MOVE Z=0 F=225 ABSOLUTE=1');
+assert.equal(c.jogCommand('Z',25,status),'_CLIENT_LINEAR_MOVE Z=25 F=750 ABSOLUTE=1');
+status.gcode_move.gcode_position[2]=25;assert.equal(c.jogCommand('Z',0,status),'_CLIENT_LINEAR_MOVE Z=0 F=225 ABSOLUTE=1');
+status.gcode_move.gcode_position[2]=60;c.jogSpeed=10;assert(c.jogCommand('Z',0,status).split('\n').every(line=>line.includes('F=75')));

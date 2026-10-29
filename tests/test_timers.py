@@ -20,9 +20,31 @@ assert 'VARIABLE=timeout VALUE=2700.0' in text and 'VARIABLE=disable_after VALUE
 assert 'SAVE_VARIABLE VARIABLE=cnc_idle_warning_minutes VALUE=45.0' in text and 'SAVE_VARIABLE VARIABLE=cnc_stepper_timeout_minutes VALUE=20.0' in text
 text=render('delayed_gcode led_restore_settings');assert 'VARIABLE=timeout VALUE=1800.0' in text and 'VARIABLE=disable_after VALUE=1800.0' in text
 p['save_variables'].variables={'cnc_idle_warning_minutes':45,'cnc_stepper_timeout_minutes':20,'cnc_stepper_auto_disable':0}
-text=render('delayed_gcode led_restore_settings');assert 'VARIABLE=timeout VALUE=2700.0' in text and 'VARIABLE=disable_after VALUE=0.0' in text
+text=render('delayed_gcode led_restore_settings');assert 'VARIABLE=timeout VALUE=2700.0' in text and 'VARIABLE=disable_after VALUE=-1.0' in text
 for key in ['WARNING_MINUTES','MINUTES']:
- try:render('gcode_macro SET_STEPPER_TIMEOUT',{key:'0'})
- except ValueError:pass
- else:raise AssertionError('Invalid time accepted')
+ for value in ['-0.1','1440.1','0.01','nan','inf']:
+  try:render('gcode_macro SET_STEPPER_TIMEOUT',{key:value})
+  except ValueError:pass
+  else:raise AssertionError('Invalid time accepted: '+value)
+ for value in ['0','0.1','12.5','1440']:
+  render('gcode_macro SET_STEPPER_TIMEOUT',{key:value})
+s.disable_after=0;s.warning_since=1800;p['toolhead'].estimated_print_time=1800
+assert 'M84' in render('delayed_gcode led_idle_watch')
+s.disable_after=-1
+assert 'M84' not in render('delayed_gcode led_idle_watch')
+s.disable_after=6;p['toolhead'].estimated_print_time=1805.9
+assert 'M84' not in render('delayed_gcode led_idle_watch')
+p['toolhead'].estimated_print_time=1806
+assert 'M84' in render('delayed_gcode led_idle_watch')
+p['pause_resume'].is_paused=True
+assert 'M84' not in render('delayed_gcode led_idle_watch')
+p['pause_resume'].is_paused=False
 print('Passed 30+30 defaults and boundaries, paused/running exclusions, validation, saving both stages, restoring customized stages and Disabled across reboot.')
+
+s.automatic=2;p['stepper_enable'].steppers={'x':False};p['toolhead'].print_time=s.last_move
+text=render('delayed_gcode led_idle_watch');assert '_LED_WARNING_STOP' not in text and 'M84' not in text
+for phase in range(24):
+ s.phase=phase;text=render('delayed_gcode led_warning_tick');assert 'SET_LED LED=work_lights' in text and 'SYNC=0' in text
+p['stepper_enable'].steppers={'x':True};assert '_LED_WARNING_STOP' in render('delayed_gcode led_idle_watch')
+assert 'VARIABLE=automatic VALUE=0' in render('gcode_macro LED_IDLE_ACTIVITY') or '_LED_WARNING_STOP' in render('gcode_macro LED_IDLE_ACTIVITY')
+print('Passed latched auto-disable lighting, all 24 animation phases, re-enable and activity acknowledgement.')

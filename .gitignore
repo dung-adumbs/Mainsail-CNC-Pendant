@@ -12,6 +12,7 @@ full-config/
 node_modules/
 .DS_Store
 android/build/
+windows/build/
 android/local-signing/
 *.keystore
 *.jks

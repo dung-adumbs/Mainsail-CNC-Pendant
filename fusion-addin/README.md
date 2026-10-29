@@ -1,22 +1,33 @@
-# Fusion CNC Outbox add-in — first integration preview
+# Fusion CNC Outbox
 
-Adds **Post to CNC Outbox** in a dedicated Manufacture toolbar panel. Does not replace Autodesk's built-in Post Process command. The add-in's Python is syntax-checked and filename generation is unit tested. It still requires interactive testing in Fusion on the reference machine; do not describe this as a validated turnkey installer.
+**Post to CNC Outbox** accepts one setup, an NC Program, or selected operations from one setup. It posts separate single-tool files at every consecutive tool change, in the setup's programmed order. A returning tool stays in its later position: T6 → T9 → T13 → T6 creates four files. A single-tool selection creates one file. No operation is reordered to minimize tool changes.
 
-## Machine identification and first-use walkthrough
+The same command remains pinned in **Milling > Actions**, immediately after native Post Process, and in the CAM right-click menu. No second batch command or toolbar panel is added. After updating installed Python files, Stop and Run CncOutbox once in Scripts and Add-Ins, or restart Fusion after saving your work. Run on Startup can remain enabled.
 
-1. Manufacture > Manage > Machine Library. Locate an existing appropriate three-axis Cartesian milling machine in Local, or create a local definition from an appropriate generic three-axis machine. Do not select a five-axis or additive machine to obtain a name.
-2. Name the machine model **LowRider V4** and description **Mainsail CNC Pendant**. Configure physical machine properties correctly; the add-in does not construct or validate machine kinematics. Associate the local Mainsail CNC Pendant post in the machine's Post Processing settings where available.
-3. Edit each intended setup > Machine > Select. Choose this local machine, save the setup and Fusion document. Assign it to the Fasten Only setup as well as the main machining setup. Library definitions copied into documents are separate instances; changes in the library may not propagate into existing setups.
-4. Utilities > Add-Ins > Scripts and Add-Ins > Add-Ins. Find **CncOutbox**, select it and Run. Enable Run on Startup. If not discovered, add its installation directory manually or restart Fusion after saving work.
-5. Select one tool's operations and relevant Manual NC entries, a one-tool setup, or a saved one-tool NC Program, then press **Post to CNC Outbox** in Manufacture. A whole multi-tool setup is rejected. Suppressed operations are excluded. Selection order and completeness must be reviewed.
-6. On first use, inspect the reported vendor/model/description and approve the intended machine. That invocation registers its identity only; press the command again to post. Changes to registered machine identity require reviewing local config; mismatches block posting.
-7. Review the exact operation list, tool, machine and output filename. Yes posts; No cancels. Unique filenames include document, setup, tool description, full date/time with microseconds and a random suffix. No filename expression is needed for this command.
-8. Inspect the first G-code header for `CNC_MACHINE_VENDOR`, `CNC_MACHINE_MODEL`, `CNC_MACHINE_DESCRIPTION`, `CNC_FUSION_SETUP` and expected stock values. Inspect the resulting program before running. Posting itself never starts the CNC.
+## Review and posting
 
-## Installation details
+Assign the intended machine to the setup. The assigned identity must match the locally registered machine; first binding requires review. Select the intended setup or operations and invoke Post to CNC Outbox. Suppressed operations are omitted. The command rejects mixed setups, invalid/empty toolpaths and more than 24 tool stages before posting. Different tool geometry/definitions cause separate stages even if the tool number is reused. Different feeds or presets for the same tool do not themselves split a stage. Manual NC entries retain sequence, with entries before a new tool attached to that following stage; trailing entries remain in the last stage.
 
-Copy **CncOutbox/** into the user's Fusion API AddIns directory. Create `config.json` alongside its manifest, with `outbox` (absolute PC output path) and `post_description` (exact local post description). It deliberately contains no machine identity until the user registers an assigned machine. The post library must contain exactly one matching local post with vendor `Mainsail CNC Pendant`. Post v0.12 adds machine metadata; missing identity is marked Not assigned.
+One confirmation lists every stage and its operations. Confirming posts through the usual local CNC Pendant post configuration. Native NC Programs remain in the document as an audit trail. The command does not generate missing toolpaths, modify CAM, start a job or send machine commands.
 
-The command uses Fusion NC Programs to post. New NC Programs are retained in the document as an audit trail. It starts from the selected operations rather than modifying prior saved NC Programs. Post properties use the local post defaults for a new NC Program; optional travel optimization remains a separate pendant step. The command is not an automatic multi-tool splitter or bundle builder.
+All native outputs are first created in an unwatched `.cnc-posting/<batch-id>` folder beside Outbox. It retains drafts and a manifest. Only after every post succeeds and passes readback checks are copies released to Outbox, without overwriting existing names. A posting failure publishes nothing; an exceptional failure during publication can leave a partial batch, which Pendant flags as incomplete. Preserve drafts and inspect before retrying. No automatic pruning.
 
-Stop the add-in in Scripts and Add-Ins and disable Run on Startup to restore the ordinary workflow. No built-in Fusion command, machine definition or existing NC Program is removed. Outbox transfers are controlled by the separate Windows helper.
+Unique names include document, early stage/tool number, setup, UTC timestamp and random batch suffix. The existing PC helper still uploads files, verifies SHA-256, and archives PC originals with receipts. It may shorten filenames, so Pendant uses embedded batch identity and stage numbers rather than filenames to order the files.
+
+## Embedded setup-sheet metadata
+
+Each G-code starts with `CNC_BATCH_V1` JSON and `CNC_FUSION_OPERATION_V1` JSON comments. These retain document/setup, batch ID, stage/count, operation names, actual assigned Fusion tool definitions, requested RPM, cutting feed and Fusion nominal time when available. Comments cannot add executable lines. The canonical post's original metadata and motion remain intact.
+
+Time estimates use Fusion CAM at 100% feed, a disclosed 1000 mm/min rapid assumption and zero manual tool-change time. These assumptions are for documentation, not configured or validated machine speeds. Missing estimates are explicitly unavailable; they are not guessed. Pendant optimization changes travel timing independently.
+
+## Installation and machine identity
+
+Copy CncOutbox/ into the user's Fusion API AddIns directory. Preserve the private config.json and resources when updating. Configuration requires an absolute Outbox path and the exact local post description, with vendor Mainsail CNC Pendant. The one-tool canonical post remains unchanged. The registered machine identity lives only in local config.json, never public source. Assignment to each setup and actual physical machine/tool clearance remain separate checks.
+
+## Verification status
+
+Batch planning and posting orchestration are tested against a fake Fusion API, including returning tools, setup ordering, preserved Manual NC order, invalid paths and mid-batch native-post failure with no publication. Menu placement regression tests pass. The installed batch feature's first real Fusion posting and PC-to-Pi workflow are for operator walkthrough; software tests do not certify CAM or machining.
+
+## Posting memo and review
+
+CNC Outbox now opens a native command dialog showing Fusion document, setup, local posting time and selected operations in setup order. Optional one-line memo (up to200characters) is embedded in every batch stage and the preserved draft manifest. Post to CNC Outbox is the single normal confirmation; first-time machine identity/copy review remains separate. Suppressed operations remain excluded and the selected tool-change sequence is retained. Reload the add-in after updating it.
