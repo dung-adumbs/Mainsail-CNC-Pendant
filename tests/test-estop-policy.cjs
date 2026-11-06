@@ -1,0 +1,10 @@
+const assert=require('assert/strict'),policy=require('../src/cnc-estop.js');
+const idle={webhooks:{state:'ready'},print_stats:{state:'standby'},pause_resume:{is_paused:false},virtual_sdcard:{is_active:false},cnc_force_jog:{busy:false},idle_timeout:{state:'Idle'},motion_report:{live_velocity:0},toolhead:{print_time:10,estimated_print_time:10.1}};
+assert.equal(policy.immediateReason(idle),'');
+const settledPause={...idle,print_stats:{state:'paused'},pause_resume:{is_paused:true}};
+assert(policy.immediateReason(settledPause,{pausedForMs:1999}));assert.equal(policy.immediateReason(settledPause,{pausedForMs:2000}),'');
+for(const status of [null,{...idle,webhooks:{state:'shutdown'}},{...idle,print_stats:{state:'printing'}},{...idle,virtual_sdcard:{is_active:true}},{...idle,cnc_force_jog:{busy:true}},{...idle,idle_timeout:{state:'Printing'}},{...idle,motion_report:{live_velocity:.01}},{...idle,toolhead:{}},{...idle,toolhead:{print_time:10,estimated_print_time:10.04}}])assert(policy.immediateReason(status));
+for(const status of [{...settledPause,virtual_sdcard:{is_active:true}},{...settledPause,motion_report:{live_velocity:.01}},{...settledPause,toolhead:{print_time:10,estimated_print_time:10.04}}])assert(policy.immediateReason(status,{pausedForMs:3000}));
+assert.equal(policy.holdMs,1000);
+assert.equal(policy.pausedSettleMs,2000);
+console.log('PASS hold confirmation for idle or settled stationary pauses; immediate E-stop for pause transition, motion, running, disconnected, or uncertain states');

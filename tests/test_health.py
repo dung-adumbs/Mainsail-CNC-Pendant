@@ -40,14 +40,42 @@ class Decisions(unittest.TestCase):
         self.assertEqual(state.update(warning,8,True)[0],10)
         self.assertFalse(state.update({'ready':True,'warnings':[]},9,True)[1]);self.assertIsNone(state.since)
 
+    def test_battery_timer_reminder_pause_and_acknowledge(self):
+        state=h.BatteryState();state.arm('large',True,'job.nc',1,0)
+        state.update(0,True,'job.nc',1,1)
+        state.update(60,True,'job.nc',1,1)
+        # Runtime deltas are deliberately capped so a stalled sampler cannot
+        # invent battery use. Exercise normal one-second samples instead.
+        state=h.BatteryState();state.arm('large',True,'job.nc',.1,0)
+        for now in range(8):result=state.update(now,True,'job.nc',.1,.05)
+        self.assertTrue(state.ack_required);self.assertFalse(result['pause'])
+        result=state.update(11,True,'job.nc',.1,.05)
+        self.assertTrue(result['pause']);self.assertFalse(state.update(12,True,'job.nc',.1,.05)['pause'])
+        elapsed=state.battery_seconds;state.acknowledge(2,12)
+        self.assertFalse(state.ack_required);self.assertEqual(state.battery_seconds,elapsed)
+
+    def test_battery_change_preserves_job_time_and_resets_pack(self):
+        state=h.BatteryState();state.arm('small',False,'job.nc',15,0)
+        for now in range(5):state.update(now,True,'job.nc',15,3)
+        job=state.job_seconds;self.assertGreater(job,0)
+        state.arm('large',True,'job.nc',15,5,changed=True)
+        self.assertEqual(state.battery_seconds,0);self.assertEqual(state.job_seconds,job)
+        view=state.view(5,True,[{'id':'large','name':'Large battery'}])
+        self.assertEqual(view['filename'],'job.nc');self.assertFalse(view['pause_attempted'])
+
 
 class Service(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.c=c=h.CNCHealth.__new__(h.CNCHealth);c.enabled=True;c.lock=asyncio.Lock();c.updated=0
         c.state=h.HealthState();c.names={k:None for k in normal()};c.loaded=True;c.pi_at=time.monotonic();c.pi_cache={'temperature':80,'bits':0,'cpu':5};c.pause_error=None;c.lamp=False
+        c.battery=h.BatteryState();c.battery_loaded=True;c.battery_saved=0
+        c.battery_settings={'enabled':False,'reminder':15.,'grace':3.,'profiles':[{'id':'small','name':'Small battery'}]}
         self.s=normal();self.s.update(print_stats={'state':'printing'},pause_resume={'is_paused':False})
         c.api=types.SimpleNamespace(query_objects=AsyncMock(side_effect=lambda *a:copy.deepcopy(self.s)),pause_print=AsyncMock(),run_gcode=AsyncMock())
-        c.db=types.SimpleNamespace(get_item=AsyncMock(return_value=75),insert_item=AsyncMock())
+        async def get_item(namespace,key,default=None):
+            if key=='pi_temp_limit':return 75
+            return default
+        c.db=types.SimpleNamespace(get_item=AsyncMock(side_effect=get_item),insert_item=AsyncMock())
         c.server=types.SimpleNamespace(error=lambda message,*a:ValueError(message))
 
     async def test_pause_and_lamp_no_resume(self):

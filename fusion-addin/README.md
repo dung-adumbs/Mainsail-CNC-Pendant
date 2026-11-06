@@ -26,7 +26,7 @@ Copy CncOutbox/ into the user's Fusion API AddIns directory. Preserve the privat
 
 ## Verification status
 
-Batch planning and posting orchestration are tested against a fake Fusion API, including returning tools, setup ordering, preserved Manual NC order, invalid paths and mid-batch native-post failure with no publication. Menu placement regression tests pass. The installed batch feature's first real Fusion posting and PC-to-Pi workflow are for operator walkthrough; software tests do not certify CAM or machining.
+Batch planning and posting orchestration are tested against a fake Fusion API, including returning tools, setup ordering, preserved Manual NC order, invalid paths and mid-batch native-post failure with no publication. Menu placement regression tests pass. The reference installation has also completed real multi-stage Fusion posting and checksum-verified PC-to-Pi delivery. This does not certify another Fusion installation, CAM strategy, machine assignment or machining result.
 
 ## Posting memo and review
 

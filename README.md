@@ -10,15 +10,15 @@ A dedicated CNC control page alongside the standard Mainsail dashboard. Set up w
 
 > **Early days, built through brainstorming and hands-on testing.** Most implementation and documentation were created with **ChatGPT / OpenAI Codex**, guided by the owner's ideas and LowRider testing. Every machine needs individual review and testing. This is not a certified safety system or a universal drop-in CNC conversion.
 
-[Install & recover](docs/SETUP.md) · [Android APK](android/apk/CNC-Pendant-preview.apk) · [Compatibility](docs/COMPATIBILITY.md) · [What persists](docs/PERSISTENCE.md) · [Roadmap](docs/ROADMAP.md)
+[Tester guide / executive summary](docs/TESTER-GUIDE.md) · [Install with ChatGPT/Codex](docs/CHATGPT-INSTALL-STARTER.md) · [Install & recover](docs/SETUP.md) · [Android APK](android/apk/CNC-Pendant-preview.apk) · [Compatibility](docs/COMPATIBILITY.md) · [What persists](docs/PERSISTENCE.md) · [Roadmap](docs/ROADMAP.md)
 
-**Installing with an AI assistant?** Give it the [AI implementation handoff](docs/AI-IMPLEMENTATION-HANDOFF.md), including the ready-to-copy request, compatibility checklist, testing and recovery requirements.
+**Installing with an AI assistant?** Start with [Install with ChatGPT or Codex](docs/CHATGPT-INSTALL-STARTER.md), then give it the detailed [AI implementation handoff](docs/AI-IMPLEMENTATION-HANDOFF.md). Both include ready-to-copy requests, compatibility checks, safety boundaries, testing and recovery requirements.
 
 **Posting from Fusion?** The [marked Klipper Fusion post and optional travel optimizer](docs/FUSION-TRAVEL.md) let you preview travel-feed changes, create a separate copy, then stage and verify it before Start.
 
 **Automatic PC uploads:** the optional [Windows CNC Outbox helper](pc-outbox/README.md) sends completed posts to a Pi Inbox, verifies checksums, and archives the PC originals. It starts at Windows sign-in, retries offline transfers, and only notifies when queued posts cannot reach the Pi.
 
-**Fusion posting command (integration preview):** [CNC Outbox add-in](fusion-addin/README.md) identifies an assigned machine, reviews selected one-tool operations, and posts with unique filenames. Interactive Fusion verification is still pending.
+**Fusion posting command:** [CNC Outbox add-in](fusion-addin/README.md) identifies an assigned machine, reviews selected operations, splits ordered stages at tool changes, and posts with unique filenames. The reference installation has completed real Fusion-to-PC-to-Pi transfers; every other machine still requires its own setup and verification.
 
 ## Watch it in use
 
@@ -71,6 +71,9 @@ Toolpath visualization and software guards do not certify fixture or cutter clea
 - Machine limits / editable machine position / axis / editable work position / work limits. **Enter commits; leaving cancels.** Machine-coordinate entries are converted through the current work offset before travel and clearance checks.
 - Independent compact **Run speed** and **Jog speed** controls. Run preset shows 50% at current speeds up to 60%, and 100% at 61% or above. 300% Max requires confirmation.
 - **Motion · Live / Requested** shows Klipper's planned live tool velocity and last parsed feed including Run speed override, in mm/s. Live is not encoder feedback; Requested may be ahead of motion because of buffering and remains set while idle.
+- Requested RPM changes produce prominent manual-router confirmation prompts. Tool-change pauses retain the requested tool, operation and RPM context when Fusion metadata is present.
+- Current chip load is calculated from programmed feed, requested RPM and flute count. It is an estimate from CAM metadata—not measured cutting force or physical spindle speed.
+- Optional battery-router profiles track active runtime, prompt at job start and tool changes, and can request a controlled Pause when a reminder is ignored. They do not measure battery voltage or charge state.
 - Safe work-Z permission alongside one **Z Safety** dialog for height and jog-speed cap, with explicit Save/Cancel. The cap limits the selected jog speed rather than replacing it. Relocks above safe height and on origin changes.
 - Gray unavailable moves, green normal moves, amber downward destinations below safe work height. Forced recovery uses explicit red controls.
 - **IN MOTION — Additional moves will be queued. Proceed with caution.** Uses waiting requests plus controller motion timing; it is not an exact count of Klipper's full queue.
@@ -109,6 +112,8 @@ This repository deliberately excludes printer.cfg, MCU IDs, credentials, backups
 
 ## Install, test, recover
 
+New testers should begin with the [tester guide and executive summary](docs/TESTER-GUIDE.md). It covers the coherent Pi/controller installation, Android and Windows clients, Fusion post/add-in, verified PC transfers, first-test sequence and rollback expectations.
+
 ```sh
 python3 tools/manage.py install --mainsail-dir ~/mainsail --config-dir ~/printer_data/config
 # Review the dry run and docs/SETUP.md before adding --apply.
@@ -120,7 +125,7 @@ Installer backs up full machine configuration locally, records hashes of every m
 
 I'm a GitHub newcomer. Pull requests, direct feedback, screenshots and reports from other machines are very welcome. Please describe your kinematics, Mainsail/Klipper versions, relevant macros, and what you tested. The goal is a useful, understandable Klipper CNC interface developed openly with users.
 
-Future work includes spindle on/off and RPM, probing/tool workflows, more generic machine profiles, and the next file-selection/pause improvements in [the roadmap](docs/ROADMAP.md).
+Future work includes closed-loop spindle control, probing/tool workflows, more generic machine profiles, and the next file-selection/pause improvements in [the roadmap](docs/ROADMAP.md).
 
 Independent project; not endorsed by Mainsail, Klipper, Moonraker or V1 Engineering. **GPL-3.0-or-later**; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 

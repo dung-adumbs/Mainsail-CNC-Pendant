@@ -65,7 +65,7 @@ def plan(args):
         raise RuntimeError('Could not find Mainsail loading-page insertion point.')
     loader = BEGIN + '\n<script defer src="/cnc-pendant-link.js?v=0.3-preview"></script>\n' + END + '\n'
     files = [(index, text.replace('</head>', loader + '</head>', 1).encode())]
-    for name in ['cnc-pendant.html','cnc-pendant.css','cnc-pendant-core.js','cnc-pendant.js','cnc-pendant-settings.js','cnc-pendant-link.js','cnc-pendant-preflight.js','cnc-pendant-projects.js','cnc-pendant-rollup.js','cnc-setup-sheet.js','cnc-backup-prompt.js','cnc-health.js','cnc-tool-review.js','cnc-run.js','cnc-endstop-test.js','cnc-pendant-icon.svg']:
+    for name in ['cnc-pendant.html','cnc-pendant.css','cnc-pendant-core.js','cnc-pendant.js','cnc-pendant-settings.js','cnc-estop.js','cnc-pendant-link.js','cnc-pendant-preflight.js','cnc-pendant-projects.js','cnc-pendant-rollup.js','cnc-setup-sheet.js','cnc-backup-prompt.js','cnc-health.js','cnc-battery.js','cnc-tool-review.js','cnc-run.js','cnc-endstop-test.js','cnc-pendant-icon.svg']:
         files.append((destination(name,mainsail),(ROOT/'src'/name).read_bytes()))
     roots = {'mainsail': str(mainsail), 'config': str(config)}
     if args.recovery:

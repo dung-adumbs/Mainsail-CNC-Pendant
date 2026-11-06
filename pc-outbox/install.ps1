@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$true)][string]$InstallDir,
     [Parameter(Mandatory=$true)][string]$Outbox,
     [Parameter(Mandatory=$true)][string]$Sent,
-    [string]$Server = 'http://192.168.1.158',
+    [Parameter(Mandatory=$true)][string]$Server,
     [switch]$NoStart
 )
 $ErrorActionPreference = 'Stop'

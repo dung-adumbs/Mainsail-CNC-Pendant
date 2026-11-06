@@ -18,4 +18,4 @@ The script compiles the native Java source, generates DEX, packages, aligns, sig
 
 **Preview signing:** preserve your private build keystore for compatible updates. A build signed by a different preview key cannot upgrade an installed APK without uninstalling it first (which loses only the app's machine-address preference). The committed APK is an initial test build; stable release signing is future work. Source is GPL-3.0-or-later.
 
-The APK has compiled and passed signature verification. Installation, immersive behavior, WebView/network/auth compatibility and touch behavior still need physical Android-device validation. Browser and app controls continue to share the Pi's settings.
+The committed preview APK has compiled, passed signature verification, and has been installed and used on the reference Android phone for homing/file/running/paused workflow demonstrations. That validates only the reference phone and controller; other Android/WebView versions, network/authentication arrangements and touch layouts still require individual testing. Browser and app controls continue to share the Pi's settings.

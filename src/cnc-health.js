@@ -33,4 +33,5 @@
   let busy=false;
   async function poll(){if(busy)return;busy=true;try{health=await ui.api('/machine/cnc_health/status');if(!health.enabled)health={...health,state:'unavailable',message:'Hardware monitor not activated'};}catch(_){health={state:'unavailable',message:'Hardware status unavailable',rows:[],stale:true};}finally{busy=false;paint();}}
   setInterval(poll,1200);poll();
+  if(!document.querySelector('script[data-cnc-battery]')){const loader=document.createElement('script');loader.src='/cnc-battery.js?v=82';loader.dataset.cncBattery='true';document.head.append(loader);}
 })();

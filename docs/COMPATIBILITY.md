@@ -1,6 +1,6 @@
 # Compatibility
 
-Tested reference: LowRider V4, Mainsail 2.17.0, Klipper/Moonraker, X/Y minimum homing, upward Z homing, paired Y/Y1 and Z/Z1. Browser testing covers desktop and narrow viewports. Android APK is compiled/signature-checked, not yet physically device-tested.
+Tested reference: LowRider V4, Mainsail 2.17.0, Klipper/Moonraker, X/Y minimum homing, upward Z homing, paired Y/Y1 and Z/Z1. Browser testing covers desktop and narrow viewports. The Android APK has been used on the reference owner's phone; other devices remain individually unverified.
 
 Machine limits are read from Klipper; reference jog rate bases remain XY 200 mm/s and Z 25 mm/s, scaled by the selected percentage. Review these and the safe-Z range before adapting. Some macro names and DOM identifiers retain LowRider naming. Endstop labels assume X/Y/Y1/Z/Z1; adapt to actual switch names.
 

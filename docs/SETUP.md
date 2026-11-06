@@ -1,6 +1,6 @@
 # Installation and first checks
 
-This preview is adapted to **Mainsail 2.17.0** with an existing working Klipper/Moonraker CNC. It adds a separate page; it does not replace your machine firmware or CAM workflow.
+This preview is adapted to **Mainsail 2.17.0** with an existing working Klipper/Moonraker CNC. It adds a separate page; it does not replace your machine firmware or CAM workflow. New external testers should first read the consolidated [tester guide and executive summary](TESTER-GUIDE.md).
 
 1. Save a full backup of printer configuration and Mainsail assets. Stop all jobs and motion. Do not install while paused.
 2. Review `docs/COMPATIBILITY.md` and compare `examples/lowrider-v4/` to your macros. Required interfaces include HOME_ALL/HOME_X/HOME_Y/HOME_Z, ZERO_X/Y/Z/XY/ALL, START_JOB, PAUSE, RESUME, CANCEL_PRINT, `_CLIENT_LINEAR_MOVE`, and the optional light/idle macros. Do not blindly include the reference file: its G28 and pause overrides may conflict with existing definitions.
@@ -12,7 +12,7 @@ python3 tools/manage.py install --mainsail-dir ~/mainsail --config-dir ~/printer
 python3 tools/manage.py install --mainsail-dir ~/mainsail --config-dir ~/printer_data/config --apply
 ```
 
-The installer checks the Mainsail version, refuses an existing managed loader, backs up full configuration locally (which may contain private settings), and records original/installed hashes. It copies seven UI assets and injects only a navigation loader. It does not restart a service or modify machine macros/includes. Open `/cnc-pendant.html` after reviewing controller prerequisites.
+The installer checks the Mainsail version, refuses an existing managed loader, backs up full configuration locally (which may contain private settings), and records original/installed hashes. It copies the current managed UI asset set and injects only a navigation loader. It does not restart a service or modify machine macros/includes. Open `/cnc-pendant.html` after reviewing controller prerequisites.
 
 ## Full-system dependency
 

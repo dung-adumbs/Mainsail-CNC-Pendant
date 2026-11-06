@@ -19,11 +19,22 @@ The Pi and network connection are still required. This is not an offline control
 
 ## Install and build
 
-Run `Install.ps1 -MachineAddress http://your-machine-address -DryRun`, review the
-paths, then run it without `-DryRun`. It installs for the current Windows user,
-verifies package checksums, preserves previous installed files and settings, and
-creates Desktop/Start shortcuts. No administrator account, browser extension or
-controller restart is required. An installed supported browser is required.
+The lightweight browser shell is the recommended tester path when Python is
+already installed. Run the following first as a dry run, review the paths and
+hashes, then repeat without `-DryRun`:
+
+```powershell
+.\Install-BrowserShell.ps1 `
+  -PythonwPath "C:\Path\To\Python\pythonw.exe" `
+  -MachineAddress "http://your-machine-address" `
+  -DryRun
+```
+
+`Install.ps1 -MachineAddress http://your-machine-address -DryRun` installs the
+compiled .NET launcher alternative. It likewise installs for the current Windows
+user, verifies package checksums, preserves previous installed files and settings,
+and creates Desktop/Start shortcuts. No administrator account, browser extension
+or controller restart is required. An installed supported browser is required.
 
 Build from source with `Build.ps1 -OutputDirectory <new output folder>` using the
 Windows .NET Framework compiler. The icon is generated from the existing Pendant

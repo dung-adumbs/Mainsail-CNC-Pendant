@@ -1,4 +1,4 @@
-/* Strict rollup of reviewed Mainsail CNC post 0.12 sources. No execution. */
+/* Strict rollup of reviewed Mainsail CNC post 0.12/0.13 sources. No execution. */
 (() => {
  'use strict';
  const completion='RESPOND MSG="Job complete. Turn router OFF manually."';
@@ -16,7 +16,7 @@
    if(text.includes('; CNC_ROLLUP_VERSION:')||text.includes('; CNC_OPTIMIZED:'))throw Error('Use original one-tool posts, not prior rollups or optimized copies.');
    const values=key=>[...new Set([...text.matchAll(new RegExp('^; '+key+':\\s*(.*)$','gm'))].map(m=>m[1].trim()))];
    const one=key=>{const list=values(key);if(list.length!==1||!list[0]||/not (?:assigned|supplied)/i.test(list[0]))throw Error('Missing or inconsistent '+key+' in '+stage.path);return list[0];};
-   if(one('CNC_POST_VERSION')!=='Mainsail-CNC-Pendant 0.12')throw Error('Rollup currently supports the original CNC Pendant post 0.12 only.');
+   if(!['Mainsail-CNC-Pendant 0.12','Mainsail-CNC-Pendant 0.13'].includes(one('CNC_POST_VERSION')))throw Error('Rollup currently supports CNC Pendant posts 0.12 and 0.13 only.');
    const job=one('Job'),document=job.split('__')[0];if(!job.includes('__'))throw Error('Source document identity is missing.');
    const setup=one('CNC_FUSION_SETUP'),machine=['CNC_MACHINE_VENDOR','CNC_MACHINE_MODEL','CNC_MACHINE_DESCRIPTION'].map(one).join(' | ');
    for(const [key,value] of Object.entries({document,machine,top:one('CNC_STOCK_TOP_WORK_Z_MM'),plane:one('CNC_TRAVEL_PLANE_WORK_Z_MM'),offset:one('CNC_TRAVEL_OFFSET_MM'),clearance:one('CNC_TRAVEL_CLEARANCE_MM')})){

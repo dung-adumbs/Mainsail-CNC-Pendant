@@ -71,9 +71,11 @@ Pure vertical linear moves now split at stock top on ascent, or stock top plus c
 
 # Setup identity (post 0.11)
 
-`CNC_FUSION_SETUP` records Fusion's `job-description` setup name when provided, both in the file header and at operation entry. Missing names are explicitly reported as Not supplied. Setup names help suggest file groups but do not establish machining order or prove matching work origins. Users must review group membership and order; the pendant bundle builder is not yet implemented.
+`CNC_FUSION_SETUP` records Fusion's `job-description` setup name when provided, both in the file header and at operation entry. Missing names are explicitly reported as Not supplied. Setup names help suggest file groups but do not establish machining order or prove matching work origins. Users must review group membership and order. Pendant can group reviewed batches, compile selected ordered stages and prepare an optimized copy, but names alone never establish membership or order.
 
-# Machine identity (post 0.12)
+# Machine identity and RPM-change confirmation (post 0.13)
+
+Post 0.13 marks each initial or changed requested spindle speed immediately before its mandatory pause. Pendant shows the requested old/new RPM, keeps Resume disabled until the operator checks that the manual router setting was changed or verified, and uses a full-screen warning on compact displays. A programmed speed change within an operation receives the same guard. This is an operator acknowledgement, not measured RPM or automatic spindle control. Files posted with older versions do not contain this marker and retain their previous pause behavior.
 
 The header records machineConfiguration vendor, model and description. Missing machine assignment is reported explicitly. Assign the intended machine in Fusion Setup before using the CNC Outbox add-in. Metadata identifies the Fusion configuration; it is not proof of the physical controller or physical setup.
 

@@ -2,7 +2,7 @@
 
 Progress has a fixed column and tabular digits so changing speed strings cannot shift it. The second line reports current Klipper session maximum velocity, acceleration, square-corner velocity and minimum cruise ratio. Values come from the existing status stream; no extra poll is introduced. Missing/unready values appear unavailable.
 
-These configured limits do not predict actual speed or prove safe machine settings. Live speed is planned toolhead velocity, not an encoder reading. Programmed feed reflects parsed G-code and may be ahead of physical motion because of buffering. Run speed override is shown separately. Queued-motion duration and move counts are not yet displayed.
+These configured limits do not predict actual speed or prove safe machine settings. Live speed is planned toolhead velocity, not an encoder reading. Programmed feed reflects parsed G-code and may be ahead of physical motion because of buffering. Run speed override is shown separately. Pendant displays approximate scheduled motion ahead from Klipper timing; it is not an exact command count or guaranteed stop delay.
 
 Tests cover speed distinctions, current limits, disconnected clearing, progress position through100%, and narrow layouts. Actual operation remains subject to operator review.
 
